@@ -684,7 +684,29 @@ class Planning(Base):
         "User", back_populates="planning", foreign_keys=[uploaded_by]
     )
     barangay = relationship("Barangay", back_populates="planning")
+    activities = relationship(
+        "Activity",
+        back_populates="planning",
+        cascade="all, delete-orphan"
+    )
 
+class Activity(Base):
+    __tablename__ = "activities"
+    id = Column(Integer, primary_key=True, index=True)
+
+    planning_id = Column(
+        Integer,
+        ForeignKey("planning.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    title = Column(String(255), nullable=False)
+    start_date = Column(Date, nullable=False)
+    planning = relationship(
+        "Planning",
+        back_populates="activities"
+    )
 
 # *******************************
 # Audit log helper (called from every route that changes data)
