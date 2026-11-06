@@ -5,14 +5,19 @@ from sqlalchemy.orm import Session
 from datetime import datetime, date, timezone, timedelta
 from urllib.parse import quote_plus
 from typing import Optional
+import json
+import uuid
 import os
+import re
+from pydantic import BaseModel, ConfigDict
+from io import BytesIO
 from app.database import get_db
 from app.models import (
     Barangay, Incident, Facility, Population, log_action,
     DisasterType, Severity, FacilityType, FacilityStatus,
     UploadedReport, ReportStatus, FileType, LifecycleStatus, UploadEvent,
     add_upload_history, BarangayEquipment, EquipmentType,
-    IncidentReport, ServiceabilityStatus, Resource, ResourceCategory, Equipment, EquipmentReport, EquipmentStatus, Planning, PlanningStatus
+    IncidentReport, ServiceabilityStatus, Resource, ResourceCategory, Equipment, EquipmentReport, EquipmentStatus, Planning, PlanningStatus, Activity
 )
 from app.auth import require_role, require_barangay_access
 from app.utils.pagination import (
@@ -28,14 +33,14 @@ from app.routes.uploads import (
     _safe_filename, _ext_of, ALLOWED_EXTS, UPLOAD_SUBDIR,
     save_validated_upload, find_matching_incident, resolve_or_create_incident,
 )
-from app.etl.extract_pdf import extract_pdf
+from app.etl.extract_pdf import extract_pdf, prepare_pdf_text
 from app.etl.extract_excel import extract_excel, extract_csv
 from app.etl.structure import (
     structure_text, structure_rows,
     structure_incident_report_rows, structure_incident_report_text,
     empty_incident_report_fields,
 )
-from app.etl.ai_pipeline import summarize as ai_summarize, is_available as ai_available, summarize_planning as ai_planning_summarize
+from app.etl.ai_pipeline import summarize as ai_summarize, is_available as ai_available, summarize_planning as ai_planning_summarize, extract_activities
 from app.services.geocoding import (
     search_locations, reverse_geocode_san_pedro, nearby_landmarks,
     is_within_san_pedro, get_san_pedro_bounds, get_san_pedro_boundary,
@@ -3431,32 +3436,36 @@ async def planning_upload_submit(
             status_code=302,
         )
 
-    PLANNING_UPLOAD_SUBDIR = os.path.join("uploads", "planning")
 
-    os.makedirs(PLANNING_UPLOAD_SUBDIR, exist_ok=True)
-    stored_name = _safe_filename(original_name)
-    stored_path = os.path.join(PLANNING_UPLOAD_SUBDIR, stored_name)
+    draft_id = str(uuid.uuid4())
 
-    ok, err = await save_validated_upload(file, ext, stored_path)
+    TEPM_UPLOAD_DIR = os.path.join("uploads", "temp")
+
+    os.makedirs(TEPM_UPLOAD_DIR, exist_ok=True)
+    stored_name = draft_id
+    temp_path = os.path.join(TEPM_UPLOAD_DIR, f"{draft_id}.pdf")
+
+    ok, err = await save_validated_upload(file, ext, temp_path)
     if not ok:
         return RedirectResponse(
             url="/bdrrmo/planning?error=" + quote_plus(err),
             status_code=302,
         )
 
-    planning = Planning(
-        uploaded_by=user["id"],
-        file_name=original_name,
-        file_path=stored_path.replace("\\", "/"),
-        status=PlanningStatus.pending,
-        barangay_id=barangay.id,
+    ai_json, extracted = planning_ai_activities_extraction(temp_path, stored_name)
+
+
+    save_temporary_draft(
+        user_id=user['id'],
+        draft_id=draft_id,
+        file_path=temp_path,
+        filename=original_name,
+        extracted=extracted,
+        activities=ai_json['activities']
     )
-    db.add(planning)
-    db.commit()
-    db.refresh(planning)
 
     return RedirectResponse(
-        url=f"/bdrrmo/planning?success=Plan+created+successfully", status_code=302
+        url=f"/bdrrmo/planning/review/{draft_id}", status_code=302
     )
 
 @router.get("/planning/{document_id}/view")
@@ -3582,6 +3591,182 @@ def planning_review(
         url=f"/bdrrmo/planning/{planning_id}/review", status_code=302
     )
 
+@router.get("/planning/review/{draft_id}")
+def review_activities(
+    draft_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user, barangay = _resolve_scope(request, db)
+
+    if isinstance(user, RedirectResponse):
+        return user
+    
+    if not barangay:
+        return RedirectResponse(
+            url="/bdrrmo/planning?error=No+barangay+is+assigned+to+your+account",
+            status_code=302,
+        )
+    
+    draft = get_temporary_draft(draft_id)
+
+    if not draft:
+        return RedirectResponse(
+            url="/bdrrmo/planning?error=Draft+not+found",
+            status_code=302,
+        )
+
+    return templates.TemplateResponse(
+        request=request,
+        name="bdrrmo/planning_activities_review.html",
+        context={
+            "user": user,
+            "active_nav": "planning",
+            "draft_id": draft_id,
+            "barangay": barangay,
+            "activities": draft["activities"]
+        },
+    )
+
+class ActivitySchema(BaseModel):
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str
+    start_date: Optional[date]
+
+
+class ActivityExtractionSchema(BaseModel):
+
+    model_config = ConfigDict(extra="forbid")
+
+    activities: list[ActivitySchema]
+
+@router.post("/activities/save/{draft_id}")
+async def save_confirmed_activities(
+    draft_id: str,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    user, barangay = _resolve_scope(request, db)
+
+    if isinstance(user, RedirectResponse):
+        return user
+    
+    if not barangay:
+        return RedirectResponse(
+            url="/bdrrmo/planning?error=No+barangay+is+assigned+to+your+account",
+            status_code=302,
+        )
+    
+    draft = get_temporary_draft(draft_id)
+
+    if not draft:
+        return RedirectResponse(
+            url="/bdrrmo/planning?error=Draft+not+found",
+            status_code=302,
+        )
+
+    permanent_path = None
+
+    try:
+        PLANNING_UPLOAD_SUBDIR = os.path.join("uploads", "planning")
+        TEMP_DIR = os.path.join("uploads", "temp") 
+
+        os.makedirs(PLANNING_UPLOAD_SUBDIR, exist_ok=True)
+        stored_name = _safe_filename(draft["filename"])
+        stored_path = os.path.join(PLANNING_UPLOAD_SUBDIR, stored_name)
+
+        draft_path = os.path.join(TEMP_DIR, f"{draft_id}.pdf")
+
+        with open(draft_path, "rb") as file:
+            content = file.read()
+
+        file = UploadFile(
+            filename=stored_name,
+            file=BytesIO(content)
+        )
+
+        original_name = file.filename or "planning"
+        ext = _ext_of(original_name)
+        
+        ok, err = await save_validated_upload(file, ext, stored_path)
+        if not ok:
+            return RedirectResponse(
+                url="/bdrrmo/planning?error=" + quote_plus(err),
+                status_code=302,
+            )
+
+        permanent_path = stored_path
+
+        planning = Planning(
+            uploaded_by=user["id"],
+            file_name=draft["filename"],
+            file_path=stored_path.replace("\\", "/"),
+            status=PlanningStatus.pending,
+            barangay_id=barangay.id,
+        )
+        db.add(planning)
+        db.flush()
+
+        form = await request.form()
+
+        activities = {}
+
+        for key, value in form.items():
+
+            match = re.match(r"activities\[(\d+)\]\[(\w+)\]", key)
+
+            if match:
+                index = int(match.group(1))
+                field = match.group(2)
+
+                if index not in activities:
+                    activities[index] = {}
+
+                activities[index][field] = value
+
+        # Convert dictionary into a list
+        activities = [
+            ActivitySchema(**activity)
+            for activity in activities.values()
+        ]
+
+        print(activities)
+
+        # Create activities
+        for item in activities:
+
+            activity = Activity(
+                planning_id=planning.id,
+                title=item.title,
+                start_date=item.start_date
+            )
+
+            db.add(activity)
+
+        # Commit document and activities together
+        db.commit()
+
+        # Remove temporary draft metadata
+        delete_temporary_draft(draft_id)
+
+        return RedirectResponse(
+            url=f"/bdrrmo/planning?success=Activities+and+Plan+created+successfully", status_code=302
+        )
+
+    except Exception as e:
+        print(e)
+        db.rollback()
+
+        # Remove permanent file if database transaction fails
+        if permanent_path and os.path.exists(permanent_path):
+            os.remove(permanent_path)
+
+        return RedirectResponse(
+            url=f"/bdrrmo/planning/review/{draft_id}", status_code=302
+        )
+    
 def planning_ai_summary(stored_path, file_name):
     extracted = {
         "raw_text": "", "error": None,
@@ -3598,8 +3783,38 @@ def planning_ai_summary(stored_path, file_name):
     # Optional AI summary — never blocks the flow.
     ai_json = None
     if extracted.get("raw_text"):
-        ai_json = ai_summarize(extracted["raw_text"])
+        ai_json = ai_planning_summarize(extracted["raw_text"])
 
+
+    return ai_json, extracted
+
+def planning_ai_activities_extraction(stored_path, file_name):
+    extracted = {
+        "raw_text": "", "error": None,
+    }
+
+    try:
+        out = prepare_pdf_text(stored_path)
+        extracted["raw_text"] = out.get("text", "")
+    except Exception as e:
+        print(f"Extraction failed for plan '{file_name}': {e}")
+        extracted["error"] = "Extraction failed. The file could not be read or was malformed."
+
+
+    # Optional AI summary — never blocks the flow.
+    ai_json = None
+    if extracted.get("raw_text"):
+        pattern = r"\bVI\b[\s\.:]*(.*?)\bVII\b"
+
+        match = re.search(pattern, extracted.get("raw_text"), flags=re.DOTALL)
+
+        section_text = match.group(1).strip()
+
+        column_text = extract_column_text(section_text, column_index=1)
+
+        activities = extract_activities(column_text)
+
+        ai_json = activities
 
     return ai_json, extracted
 
@@ -3616,3 +3831,118 @@ def filenames_to_paragraph(files: list[str]) -> str:
         return " and ".join(filenames) 
     
     return ", ".join(filenames[:-1]) + " and " + filenames[-1]
+
+TEMP_DIR = os.path.join("uploads", "temp") 
+
+def ensure_temp_directory(): 
+    os.makedirs(TEMP_DIR, exist_ok=True)
+    
+def save_temporary_draft( draft_id: str, file_path: str, filename: str, activities: list, user_id: int, extracted: json ) -> dict: 
+    ensure_temp_directory() 
+
+    draft_data = { 
+        "draft_id": draft_id, 
+        "file_path": file_path, 
+        "filename": filename, 
+        "user_id": user_id, 
+        "extracted": extracted,
+        "activities": [ 
+            activity.model_dump(mode="json") 
+            if hasattr(activity, "model_dump") 
+            else activity 
+            for activity in activities ], 
+        "created_at": datetime.now(timezone.utc).isoformat() } 
+    
+    draft_path = os.path.join(TEMP_DIR, f"{draft_id}.json") 
+    
+    with open(draft_path, "w", encoding="utf-8") as file: 
+        json.dump( draft_data, file, indent=4, ensure_ascii=False ) 
+    return draft_data 
+
+def get_temporary_draft( draft_id: str, user_id: Optional[int] = None ) -> Optional[dict]: 
+    ensure_temp_directory() 
+    
+    draft_path = os.path.join(TEMP_DIR, f"{draft_id}.json")
+    
+    try: 
+        with open(draft_path, "r", encoding="utf-8") as file: 
+            draft_data = json.load(file) 
+            
+        # Verify draft ownership 
+        if user_id is not None: 
+            if draft_data.get("user_id") != user_id: 
+                return None 
+            
+        return draft_data 
+        
+    except (json.JSONDecodeError, OSError): return None
+
+def delete_temporary_draft(draft_id: str) -> bool:
+
+    draft_path = os.path.join(TEMP_DIR, f"{draft_id}.json")
+    pdf_draft_path = os.path.join(TEMP_DIR, f"{draft_id}.pdf")
+
+    os.remove(draft_path)
+    os.remove(pdf_draft_path)
+
+    return True
+
+def extract_column_text(text, column_index=1):
+
+    results = []
+
+    table_started = False
+    expected_columns = None
+    headers = None
+
+    lines = text.splitlines()
+
+
+    for line in lines:
+
+        line = line.strip()
+
+        if not line:
+            continue
+
+        # Detect table section
+        if "TABLE 1" in line:
+            table_started = True
+            continue
+
+        if "==========" in line:
+            table_started = False
+            continue
+
+        # Detect regular text section
+        if "--- PAGE TEXT ---" in line:
+            table_started = False
+            continue
+
+        if not table_started:
+            continue
+
+        columns = [
+            col.strip()
+            for col in line.split("|")
+        ]
+
+        # Identify the first table header
+        if headers is None:
+
+            if len(columns) > column_index:
+                headers = columns
+                expected_columns = len(columns)
+
+            continue
+
+        # Ignore repeated headers
+        if columns == headers:
+            continue
+        
+        value = columns[column_index]
+
+        if value:
+            results.append(value)
+
+    return "\n".join(results)
