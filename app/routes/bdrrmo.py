@@ -2,6 +2,8 @@ from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 from datetime import datetime, date, timezone, timedelta
 from urllib.parse import quote_plus
 from typing import Optional
@@ -176,9 +178,12 @@ def profile(request: Request, db: Session = Depends(get_db)):
             context={"user": user, "active_nav": "bdrrmo_profile", "barangay": None},
         )
 
+    upcoming_activities = get_upcoming_activities(db)
+
     context = barangay_profile_context(db, barangay)
     context["user"] = user
     context["active_nav"] = "bdrrmo_profile"
+    context["upcoming_activities"] = upcoming_activities
     return templates.TemplateResponse(
         request=request, name="bdrrmo/profile.html", context=context
     )
@@ -3732,8 +3737,6 @@ async def save_confirmed_activities(
             for activity in activities.values()
         ]
 
-        print(activities)
-
         # Create activities
         for item in activities:
 
@@ -3946,3 +3949,21 @@ def extract_column_text(text, column_index=1):
             results.append(value)
 
     return "\n".join(results)
+
+def get_upcoming_activities(db):
+    today = date.today()
+    reminder_date = today + timedelta(days=7)
+
+    query = (
+        select(Activity)
+        .join(Activity.planning)
+        .options(joinedload(Activity.planning))
+        .where(
+            Activity.start_date >= today,
+            Activity.start_date <= reminder_date,
+            Planning.status == "approved",
+        )
+        .order_by(Activity.start_date.asc())
+    )
+
+    return db.scalars(query).all()
