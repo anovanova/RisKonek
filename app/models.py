@@ -136,6 +136,11 @@ class PlanningStatus(str, enum.Enum):
     approved = "approved"
     rejected = "rejected"
 
+class ActivityStatus(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
 # ==========================
 # TABLE 1: Barangay
 # ==========================
@@ -703,9 +708,35 @@ class Activity(Base):
 
     title = Column(String(255), nullable=False)
     start_date = Column(Date, nullable=False)
+    status = Column(Enum(ActivityStatus), default=ActivityStatus.pending)
+    is_proof_submitted = Column(Boolean, default=False)
     planning = relationship(
         "Planning",
         back_populates="activities"
+    )
+    proof = relationship(
+        "ActivityProof",
+        back_populates="activity",
+        cascade="all, delete-orphan"
+    )
+
+class ActivityProof(Base):
+    __tablename__ = "activity_proof"
+    id = Column(Integer, primary_key=True, index=True)
+
+    activity_id = Column(
+        Integer,
+        ForeignKey("activities.id"),
+        nullable=False,
+        unique=True
+    )
+
+    file_name = Column(String(150), nullable=False)
+    file_path = Column(String(500), nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+    activity = relationship(
+        "Activity",
+        back_populates="proof"
     )
 
 # *******************************
