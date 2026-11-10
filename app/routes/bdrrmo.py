@@ -19,7 +19,8 @@ from app.models import (
     DisasterType, Severity, FacilityType, FacilityStatus,
     UploadedReport, ReportStatus, FileType, LifecycleStatus, UploadEvent,
     add_upload_history, BarangayEquipment, EquipmentType,
-    IncidentReport, ServiceabilityStatus, Resource, ResourceCategory, Equipment, EquipmentReport, EquipmentStatus, Planning, PlanningStatus, Activity
+    IncidentReport, ServiceabilityStatus, Resource, ResourceCategory, Equipment, 
+    EquipmentReport, EquipmentStatus, Planning, PlanningStatus, Activity, ActivityProof
 )
 from app.auth import require_role, require_barangay_access
 from app.utils.pagination import (
@@ -3710,6 +3711,7 @@ async def save_confirmed_activities(
             file_path=stored_path.replace("\\", "/"),
             status=PlanningStatus.pending,
             barangay_id=barangay.id,
+            extracted_data=draft["extracted"],
         )
         db.add(planning)
         db.flush()
@@ -3769,6 +3771,105 @@ async def save_confirmed_activities(
         return RedirectResponse(
             url=f"/bdrrmo/planning/review/{draft_id}", status_code=302
         )
+
+@router.get("/planning/activities/{plan_id}")
+def get_activities(
+    plan_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user, barangay = _resolve_scope(request, db)
+
+    if isinstance(user, RedirectResponse):
+        return user
+    
+    if not barangay:
+        return RedirectResponse(
+            url="/bdrrmo/planning?error=No+barangay+is+assigned+to+your+account",
+            status_code=302,
+        )
+
+    plan = _get_planning_owned_upload(db, plan_id, user)
+
+    query = (
+        select(Activity)
+        .join(Activity.planning)
+        .options(joinedload(Activity.planning))
+        .where(
+            Activity.planning_id == plan_id,
+            Activity.is_proof_submitted == False,
+        )
+    )
+
+    activities = db.scalars(query).all()
+    
+
+    return templates.TemplateResponse(
+        request=request,
+        name="bdrrmo/activities.html",
+        context={
+            "user": user,
+            "active_nav": "planning",
+            "barangay": barangay,
+            "plan": plan,
+            "activities": activities
+        },
+    )
+
+@router.post("/activities/{activity_id}/submit")
+async def planning_upload_submit(
+    request: Request,
+    activity_id: str,
+    db: Session = Depends(get_db),
+    file: UploadFile = File(...),
+):
+    user, barangay = _resolve_scope(request, db)
+    if isinstance(user, RedirectResponse):
+        return user
+    if not barangay:
+        return RedirectResponse(
+            url="/bdrrmo/planning?error=No+barangay+is+assigned+to+your+account",
+            status_code=302,
+        )
+
+    original_name = file.filename
+    ext = _ext_of(original_name)
+    if ext != ".pdf":
+        return RedirectResponse(
+            url="/bdrrmo/planning?error=Unsupported+file+type.+Allowed:+PDF",
+            status_code=302,
+        )
+
+    PROOF_UPLOAD_DIR = os.path.join("uploads", "proof")
+
+    os.makedirs(PROOF_UPLOAD_DIR, exist_ok=True)
+    stored_name = _safe_filename(file.filename)
+    stored_path = os.path.join(PROOF_UPLOAD_DIR, stored_name)
+
+    ok, err = await save_validated_upload(file, ext, stored_path)
+    if not ok:
+        return RedirectResponse(
+            url="/bdrrmo/planning?error=" + quote_plus(err),
+            status_code=302,
+        )
+
+    activity_proof = ActivityProof(
+        file_name=file.filename,
+        file_path=stored_path.replace("\\", "/"),
+        activity_id=activity_id,
+    )
+
+    db.add(activity_proof)
+
+    a = db.query(Activity).filter(Activity.id == activity_id).first()
+
+    a.is_proof_submitted = True
+
+    db.commit()
+
+    return RedirectResponse(
+        url=f"/bdrrmo/planning", status_code=302
+    )
     
 def planning_ai_summary(stored_path, file_name):
     extracted = {
@@ -3967,3 +4068,30 @@ def get_upcoming_activities(db):
     )
 
     return db.scalars(query).all()
+
+def cleanup_expired_drafts(hours: int = 24):
+
+    ensure_temp_directory()
+
+    now = datetime.now(timezone.utc)
+    expiration = timedelta(hours=hours)
+
+    for draft_path in TEMP_DIR.glob("*.json"):
+
+        try:
+            draft = json.loads(
+                draft_path.read_text(encoding="utf-8")
+            )
+
+            created_at = datetime.fromisoformat(
+                draft["created_at"]
+            )
+
+            if now - created_at > expiration:
+
+                draft_id = draft["draft_id"]
+
+                delete_temporary_draft(draft_id)
+
+        except (KeyError, ValueError, OSError, json.JSONDecodeError):
+            continue
