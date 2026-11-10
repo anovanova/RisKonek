@@ -10,7 +10,8 @@ from app.models import (
     DisasterType, RiskLevel, Facility, FacilityType, FacilityStatus,
     UploadedReport, UploadHistory, UploadEvent,
     ResourceCategory, EquipmentType, log_action,
-    EquipmentReport, IncidentReport, ServiceabilityStatus, Urgency, Planning, PlanningStatus
+    EquipmentReport, IncidentReport, ServiceabilityStatus, Urgency, Planning, PlanningStatus,
+    Activity, ActivityProof
 )
 from app.etl.extract_pdf import extract_pdf
 from app.etl.ai_pipeline import summarize_planning as ai_summarize
@@ -2729,11 +2730,10 @@ def planning_archive_toggle(
     p.reason = reason
 
     if(status == "approved"):
-        ai_json, extracted = planning_ai_summary(p.file_path, p.file_name)
+        ai_json = planning_ai_summary(p.extracted_data)
         
         p.summary = ai_json['summary']
         p.recommendation = ai_json['recommendation']
-        p.extracted_data = extracted
 
     db.commit()
 
@@ -2766,22 +2766,99 @@ def planning_receive_toggle(
         status_code=302,
     )
 
-def planning_ai_summary(stored_path, file_name):
-    extracted = {
-        "raw_text": "", "error": None,
-    }
+@router.get("/planning/activities/{plan_id}")
+def get_activities(
+    plan_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = require_role(request, ["admin"])
 
-    try:
-        out = extract_pdf(stored_path)
-        extracted["raw_text"] = out.get("text", "")
-    except Exception as e:
-        print(f"Extraction failed for plan '{file_name}': {e}")
-        extracted["error"] = "Extraction failed. The file could not be read or was malformed."
+    if isinstance(user, RedirectResponse):
+        return user
 
+    plan = db.query(Planning).filter(Planning.id == plan_id).first()
+    if not plan:
+        return RedirectResponse(url="/admin/planning", status_code=302)
 
+    query = (
+        select(Activity)
+        .join(Activity.planning)
+        .options(joinedload(Activity.planning))
+        .where(
+            Activity.planning_id == plan_id,
+            Activity.status == "pending"
+        )
+    )
+
+    activities = db.scalars(query).all()
+    
+
+    return templates.TemplateResponse(
+        request=request,
+        name="/admin/activities.html",
+        context={
+            "user": user,
+            "active_nav": "planning",
+            "plan": plan,
+            "activities": activities
+        },
+    )
+
+@router.get("/activities/{activity_id}/proof")
+async def view_proof_document( 
+    activity_id: int,
+    request: Request,
+    db: Session = Depends(get_db), 
+):
+    user = require_role(request, ["admin"])
+    if isinstance(user, RedirectResponse):
+        return user
+    
+    # Retrieve the document from your database
+    document = db.query(ActivityProof).filter(ActivityProof.activity_id == activity_id).first()
+
+    if not document:
+        return RedirectResponse(url="/admin/planning", status_code=302)
+
+    return FileResponse(
+        path=document.file_path,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": "inline"
+        }
+    )
+
+@router.post("/activities/{activity_id}/approve")
+async def approve_activity( 
+    activity_id: int,
+    request: Request,
+    db: Session = Depends(get_db), 
+):
+    user = require_role(request, ["admin"])
+    if isinstance(user, RedirectResponse):
+        return user
+    
+    activity = db.query(Activity).filter(Activity.id == activity_id).first()
+
+    if not activity:
+        return RedirectResponse(url="/admin/planning", status_code=302)
+
+    activity.status = "approved"
+
+    db.commit()
+
+    return RedirectResponse(
+        url=f"/admin/planning?success={activity.title}+approved",
+        status_code=302,
+    )
+
+def planning_ai_summary(extracted_data):
     # Optional AI summary — never blocks the flow.
     ai_json = None
-    if extracted.get("raw_text"):
-        ai_json = ai_summarize(extracted["raw_text"])
+    if extracted_data.get("raw_text"):
+        text = extracted_data["raw_text"]
+        result = text.replace(" ", "")
+        ai_json = ai_summarize(result)
 
-    return ai_json, extracted
+    return ai_json
