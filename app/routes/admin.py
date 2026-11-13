@@ -2678,9 +2678,14 @@ async def view_document(
     if not document:
         return RedirectResponse(url="/admin/planning", status_code=302)
 
-    return FileResponse(
-        path=document.file_path,
-        media_type="application/pdf",
+    response = download_file(document.file_path)
+
+    return StreamingResponse(
+        response["Body"],
+        media_type=response.get(
+            "ContentType",
+            "application/octet-stream"
+        ),
         headers={
             "Content-Disposition": "inline"
         }
