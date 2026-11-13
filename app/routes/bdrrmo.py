@@ -3833,36 +3833,41 @@ async def planning_upload_submit(
             status_code=302,
         )
 
-    PROOF_UPLOAD_DIR = os.path.join("uploads", "proof")
+    try:
+        stored_name = _safe_filename(file.filename)
 
-    os.makedirs(PROOF_UPLOAD_DIR, exist_ok=True)
-    stored_name = _safe_filename(file.filename)
-    stored_path = os.path.join(PROOF_UPLOAD_DIR, stored_name)
-
-    ok, err = await save_validated_upload(file, ext, stored_path)
-    if not ok:
-        return RedirectResponse(
-            url="/bdrrmo/planning?error=" + quote_plus(err),
-            status_code=302,
+        file_key = upload_file(
+            file,
+            filename=stored_name,
+            folder="documents"
         )
 
-    activity_proof = ActivityProof(
-        file_name=file.filename,
-        file_path=stored_path.replace("\\", "/"),
-        activity_id=activity_id,
-    )
+        activity_proof = ActivityProof(
+            file_name=file.filename,
+            file_path=file_key,
+            activity_id=activity_id,
+        )
 
-    db.add(activity_proof)
+        db.add(activity_proof)
 
-    a = db.query(Activity).filter(Activity.id == activity_id).first()
+        a = db.query(Activity).filter(Activity.id == activity_id).first()
 
-    a.is_proof_submitted = True
+        a.is_proof_submitted = True
 
-    db.commit()
+        db.commit()
 
-    return RedirectResponse(
-        url=f"/bdrrmo/planning", status_code=302
-    )
+        return RedirectResponse(
+            url=f"/bdrrmo/planning", status_code=302
+        )
+    
+    except Exception as e:
+        print(e)
+        db.rollback()
+
+        return RedirectResponse(
+            url=f"/bdrrmo/planning?error=File+not+saved,+try+again", status_code=302
+        )
+
     
 def planning_ai_summary(stored_path, file_name):
     extracted = {
