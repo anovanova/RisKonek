@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -58,6 +58,7 @@ from app.services.facility_details import (
     FACILITY_CLASSIFICATIONS,
     EO_MOA_MOU_STATUSES,
 )
+from app.storage import upload_file, download_file
 
 router = APIRouter(prefix="/bdrrmo")
 templates = Jinja2Templates(directory="app/templates")
@@ -3490,9 +3491,14 @@ async def view_document(
     if not document:
         return RedirectResponse(url="/bdrrmo/planning", status_code=302)
 
-    return FileResponse(
-        path=document.file_path,
-        media_type="application/pdf",
+    response = download_file(document.file_path)
+
+    return StreamingResponse(
+        response["Body"],
+        media_type=response.get(
+            "ContentType",
+            "application/octet-stream"
+        ),
         headers={
             "Content-Disposition": "inline"
         }
@@ -3676,12 +3682,9 @@ async def save_confirmed_activities(
     permanent_path = None
 
     try:
-        PLANNING_UPLOAD_SUBDIR = os.path.join("uploads", "planning")
         TEMP_DIR = os.path.join("uploads", "temp") 
 
-        os.makedirs(PLANNING_UPLOAD_SUBDIR, exist_ok=True)
         stored_name = _safe_filename(draft["filename"])
-        stored_path = os.path.join(PLANNING_UPLOAD_SUBDIR, stored_name)
 
         draft_path = os.path.join(TEMP_DIR, f"{draft_id}.pdf")
 
@@ -3692,23 +3695,17 @@ async def save_confirmed_activities(
             filename=stored_name,
             file=BytesIO(content)
         )
-
-        original_name = file.filename or "planning"
-        ext = _ext_of(original_name)
         
-        ok, err = await save_validated_upload(file, ext, stored_path)
-        if not ok:
-            return RedirectResponse(
-                url="/bdrrmo/planning?error=" + quote_plus(err),
-                status_code=302,
-            )
-
-        permanent_path = stored_path
+        file_key = upload_file(
+            file,
+            filename=stored_name,
+            folder="documents"
+        )
 
         planning = Planning(
             uploaded_by=user["id"],
             file_name=draft["filename"],
-            file_path=stored_path.replace("\\", "/"),
+            file_path=file_key,
             status=PlanningStatus.pending,
             barangay_id=barangay.id,
             extracted_data=draft["extracted"],
@@ -3763,10 +3760,6 @@ async def save_confirmed_activities(
     except Exception as e:
         print(e)
         db.rollback()
-
-        # Remove permanent file if database transaction fails
-        if permanent_path and os.path.exists(permanent_path):
-            os.remove(permanent_path)
 
         return RedirectResponse(
             url=f"/bdrrmo/planning/review/{draft_id}", status_code=302
