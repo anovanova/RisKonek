@@ -39,10 +39,18 @@
         <div class="form-control col-lg">{{ activity.start_date}}</div>
 
         <div class="m-1 col-sm-2">
+          {% if plan.status != "approved"%}
+
+            <button type="button" class="remove-btn btn btn-outline-secondary btn-sm" disabled>
+            Plan not approved yet
+            </button> 
+
+          {% else %}
             <button type="button" class="remove-btn btn btn-primary btn-sm"
             data-bs-toggle="modal" data-bs-target="#proofModal-{{ activity.id }}">
             Submit Proof
             </button> 
+          {% endif %}
         </div>
 
 

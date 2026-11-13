@@ -3833,6 +3833,16 @@ async def planning_upload_submit(
             status_code=302,
         )
 
+    a = db.query(Activity).filter(Activity.id == activity_id).first()
+    p = db.query(Planning).filter(Planning.id == a.planning_id).first()
+
+    if p.status != "approved":
+        return RedirectResponse(
+            url="/bdrrmo/planning?error=Plan+not+approved+yet",
+            status_code=302,
+        )
+        
+
     try:
         stored_name = _safe_filename(file.filename)
 
@@ -3849,8 +3859,6 @@ async def planning_upload_submit(
         )
 
         db.add(activity_proof)
-
-        a = db.query(Activity).filter(Activity.id == activity_id).first()
 
         a.is_proof_submitted = True
 
