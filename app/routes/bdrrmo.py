@@ -425,11 +425,17 @@ async def incident_upload_submit(
             status_code=302,
         )
 
+    file_key = upload_file(
+        file,
+        filename=stored_name,
+        folder="documents"
+    )
+
     file_type_enum = ALLOWED_EXTS[ext]
     report = UploadedReport(
         uploaded_by=user["id"],
         file_name=original_name,
-        file_path=stored_path.replace("\\", "/"),
+        file_path=file_key,
         file_type=file_type_enum,
         status=ReportStatus.processing,
         lifecycle_status=LifecycleStatus.draft,
@@ -591,7 +597,21 @@ def incident_upload_file(report_id: int, request: Request, db: Session = Depends
     report = _get_owned_upload(db, report_id, user)
     if not report or not report.file_path or not os.path.exists(report.file_path):
         return RedirectResponse(url="/bdrrmo/incidents", status_code=302)
-    return FileResponse(report.file_path, filename=report.file_name)
+
+    response = download_file(report.file_path)
+
+    return StreamingResponse(
+        response["Body"],
+        media_type=response.get(
+            "ContentType",
+            "application/octet-stream"
+        ),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{report.file_name}"'
+            )
+        }
+    )
 
 
 def _read_equipment_rows(form, valid_equipment):
@@ -1059,11 +1079,17 @@ async def incident_report_upload_submit(
             status_code=302,
         )
 
+    file_key = upload_file(
+        file,
+        filename=stored_name,
+        folder="documents"
+    )
+
     file_type_enum = ALLOWED_EXTS[ext]
     report = UploadedReport(
         uploaded_by=user["id"],
         file_name=original_name,
-        file_path=stored_path.replace("\\", "/"),
+        file_path=file_key,
         file_type=file_type_enum,
         status=ReportStatus.processing,
         lifecycle_status=LifecycleStatus.draft,
@@ -1219,7 +1245,21 @@ def incident_report_upload_file(
     report = _get_owned_report_upload(db, report_id, user)
     if not report or not report.file_path or not os.path.exists(report.file_path):
         return RedirectResponse(url="/bdrrmo/incident-reports", status_code=302)
-    return FileResponse(report.file_path, filename=report.file_name)
+
+    response = download_file(report.file_path)
+
+    return StreamingResponse(
+        response["Body"],
+        media_type=response.get(
+            "ContentType",
+            "application/octet-stream"
+        ),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{report.file_name}"'
+            )
+        }
+    )
 
 
 @router.post("/incident-reports/upload/{report_id}/submit")
