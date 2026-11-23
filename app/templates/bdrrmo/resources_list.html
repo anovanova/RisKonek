@@ -7,6 +7,12 @@
 
 {% set resources_route = '/bdrrmo/resources' %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+    #header { margin: 0; color: #167736; font-size: 40px;}
+</style>
+{% endblock %}
+
 {% macro alert_pill(a) -%}
     {% if a == 'expired' %}
         <span class="status-pill status-unavailable">Expired</span>
@@ -22,7 +28,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-start page-header">
     <div>
-        <h1>Resource Goods Inventory</h1>
+        <h1 id="header">Resource Goods Inventory</h1>
         <p>Consumable disaster-response resources (food packs, water, medicine, hygiene kits, blankets, tarpaulins, sleeping kits).</p>
     </div>
     <a href="/bdrrmo/resources/new" class="btn btn-rk">

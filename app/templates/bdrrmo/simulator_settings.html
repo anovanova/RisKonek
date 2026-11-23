@@ -2,10 +2,16 @@
 {% set active_nav = 'simulator' %}
 {% block title %}Planning Thresholds — RisKonek{% endblock %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+    #header { margin: 0; color: #167736; font-size: 40px;}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
     <div>
-        <h1><i class="bi bi-sliders me-2"></i>Planning Thresholds</h1>
+        <h1 id="header"><i class="bi bi-sliders me-2"></i>Planning Thresholds</h1>
         <p>The simulator computes gaps against these values.</p>
     </div>
     <a href="/bdrrmo/simulator/setup" class="btn btn-soft">

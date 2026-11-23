@@ -4,10 +4,16 @@
 
 {% set active_nav = 'bdrrmo_incidents' %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+    #header { margin: 0; color: #167736; font-size: 40px;}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-start page-header">
     <div>
-        <h1>Review Uploaded Incident</h1>
+        <h1 id="header">Review Uploaded Incident</h1>
         <p>Preview from <strong>{{ report.file_name }}</strong>. Use the extracted content
            below as reference, then verify the core incident details and save. The incident
            is recorded against

@@ -4,9 +4,15 @@
 
 {% set active_nav = 'bdrrmo_contacts' %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+    #header { margin: 0; color: #167736; font-size: 40px;}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
-    <h1>Barangay Contact Details</h1>
+    <h1 id="header">Barangay Contact Details</h1>
     <p>Maintain officials and emergency responder contacts for
        {% if barangay %}Barangay {{ barangay.name }}{% else %}your barangay{% endif %}.
        These details are made available to authorized CDRRMO users.</p>

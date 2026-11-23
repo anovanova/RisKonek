@@ -13,10 +13,16 @@
     'Critical': {'label': 'Critical',   'pill': 'status-unavailable'}
 } %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+    #header { margin: 0; color: #167736; font-size: 40px;}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
     <div>
-        <h1><i class="bi bi-bar-chart-steps me-2"></i>Compare Scenarios</h1>
+        <h1 id="header"><i class="bi bi-bar-chart-steps me-2"></i>Compare Scenarios</h1>
         <p>Side-by-side comparison of two saved snapshots. Figures reflect the
            data and thresholds at the time each was run — nothing is recomputed.</p>
     </div>

@@ -7,7 +7,7 @@
 {% block head_extra %}
 <style nonce="{{ request.state.csp_nonce }}">
     .profile-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-    .profile-header h1 { margin: 0; }
+    .profile-header h1 { margin: 0; color: #167736; font-size: 40px;}
     .trend-up { color: #c0392b; }
     .trend-stable { color: #6c757d; }
     .group-card { background: #fafbfc; border-radius: 10px; padding: 18px; }
@@ -27,7 +27,7 @@
 {% else %}
 <div class="page-header">
     <div class="profile-header">
-        <h1>{{ barangay.name }}</h1>
+        <h1 class="barangay-name">{{ barangay.name }}</h1>
         <span class="risk-badge risk-{{ risk_level }}">{{ risk_level.title() }} Planning Priority</span>
     </div>
     <p>Disaster profile and preparedness data for your barangay.</p>

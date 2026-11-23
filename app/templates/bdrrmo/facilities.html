@@ -5,6 +5,11 @@
 {% block head_extra %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
+
+<style nonce="{{ request.state.csp_nonce }}">
+
+    #header { margin: 0; color: #167736; font-size: 40px;}
+</style>
 {% endblock %}
 
 {% set active_nav = 'bdrrmo_facilities' %}
@@ -15,7 +20,7 @@
 
 <div class="d-flex justify-content-between align-items-start page-header flex-wrap gap-2">
     <div>
-        <h1>Critical Facilities</h1>
+        <h1 id="header">Critical Facilities</h1>
         <p>
             {% if citywide %}
             Viewing all critical facilities across San Pedro City. Only facilities in
