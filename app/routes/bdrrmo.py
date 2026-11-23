@@ -181,7 +181,9 @@ def profile(request: Request, db: Session = Depends(get_db)):
             context={"user": user, "active_nav": "bdrrmo_profile", "barangay": None},
         )
 
-    upcoming_activities = get_upcoming_activities(db)
+    barangay_id = user["barangay_id"]
+
+    upcoming_activities = get_upcoming_activities(db, barangay_id)
 
     context = barangay_profile_context(db, barangay)
     context["user"] = user
@@ -4101,7 +4103,7 @@ def extract_column_text(text, column_index=1):
 
     return "\n".join(results)
 
-def get_upcoming_activities(db):
+def get_upcoming_activities(db, barangay_id):
     today = date.today()
     reminder_date = today + timedelta(days=7)
 
@@ -4113,6 +4115,7 @@ def get_upcoming_activities(db):
             Activity.start_date >= today,
             Activity.start_date <= reminder_date,
             Planning.status == "approved",
+            Planning.barangay_id == barangay_id,
         )
         .order_by(Activity.start_date.asc())
     )
