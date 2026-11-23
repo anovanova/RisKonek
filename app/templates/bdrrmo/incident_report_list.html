@@ -28,7 +28,7 @@
     </div>
     {% if barangay %}
     <div class="dropdown">
-        <button class="btn btn-rk dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <button class="btn-rk dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-plus-lg"></i> New Report
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
@@ -118,7 +118,7 @@
                         <form method="POST" action="/bdrrmo/incident-reports/{{ r.id }}/submit" class="d-inline"
                               data-confirm='Submit this report? You will no longer be able to edit it.'>
                             <input type="hidden" name="csrf_token" value="{{ request.session.get('csrf_token', '') }}">
-                            <button type="submit" class="btn btn-rk btn-sm"><i class="bi bi-send"></i> Submit</button>
+                            <button type="submit" class="btn-rk btn-sm"><i class="bi bi-send"></i> Submit</button>
                         </form>
                         {% endif %}
                     </td>

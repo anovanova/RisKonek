@@ -7,7 +7,7 @@
  * rules that previously lived inline. */
 
 :root {
-  --rk-green: #10b981;
+  --rk-green: #167736;
   --rk-green-mid: #059669;
   --rk-green-dark: #047857;
   --rk-green-light: #d1fae5;
@@ -482,20 +482,18 @@ html.rk-no-anim .main-content {
 
 /* ── Buttons ───────────────────────────────────────────────── */
 .btn-rk {
-  background: linear-gradient(135deg, var(--rk-green), var(--rk-green-dark));
+  background: #167736;
   color: white;
   border: none;
   border-radius: 9px;
   font-weight: 500;
   box-shadow: 0 1px 3px rgba(4, 120, 87, 0.3);
+  transition: opacity 0.2s ease;
+  padding: 8px;
 }
 .btn-rk:hover {
-  background: linear-gradient(
-    135deg,
-    var(--rk-green-mid),
-    var(--rk-green-dark)
-  );
   color: white;
+  opacity: 0.8;
 }
 .btn-rk:disabled,
 .btn-rk.disabled {
