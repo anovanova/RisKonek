@@ -2355,7 +2355,7 @@ def contact_directory(
     page: Optional[str] = None,
     per_page: Optional[str] = None,
 ):
-    user = require_role(request, ["bdrrmo"])
+    user, barangay = _resolve_scope(request, db)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -2364,6 +2364,7 @@ def contact_directory(
         directory_url="/bdrrmo/directory", active_nav="bdrrmo_directory",
     )
     context["user"] = user
+    context["barangay"] = barangay
     return templates.TemplateResponse(
         request=request, name="shared/contact_directory.html", context=context,
     )
@@ -2476,7 +2477,7 @@ def resources_list(
     page: Optional[str] = None,
     per_page: Optional[str] = None,
 ):
-    user, _ = _resolve_scope(request, db)
+    user, barangay = _resolve_scope(request, db)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -2542,6 +2543,7 @@ def resources_list(
             "page_obj": page_obj,
             "base_query": base_query,
             "summary": summary,
+            "barangay": barangay,
             "categories": [c.value for c in ResourceCategory],
             "food_types": [(v, FOOD_TYPE_LABELS[v]) for v in FOOD_TYPE_CHOICES],
             "f_q": q or "",
@@ -2967,7 +2969,7 @@ def equipment_list(
     page: Optional[str] = None,
     per_page: Optional[str] = None,
 ):
-    user, _ = _resolve_scope(request, db)
+    user, barangay = _resolve_scope(request, db)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -3046,6 +3048,7 @@ def equipment_list(
             "page_obj": page_obj,
             "base_query": base_query,
             "summary": summary,
+            "barangay": barangay,
             "types": [(t.value, EQUIPMENT_TYPE_LABELS.get(t.value, t.value.title()))
                       for t in EquipmentType],
             "statuses": [(s.value, EQUIPMENT_STATUS_LABELS.get(s.value, s.value.title()))

@@ -132,6 +132,8 @@ def simulator_setup(
 
     barangays = db.query(Barangay).order_by(Barangay.name).all()
 
+    barangay = db.query(Barangay).filter(Barangay.id == user['barangay_id']).first()
+
     # Optional pre-selection when arriving from a barangay profile
     # ("Use for Planning"). Coerce safely — blank/garbage never selects.
     preselect_id = int(barangay_id) if (barangay_id or "").strip().isdigit() else None
@@ -204,6 +206,7 @@ def simulator_setup(
             "title": "Resource Simulator — RisKonek",
             "user": user,
             "barangays": barangays,
+            "barangay": barangay,
             "disaster_types": list(DisasterType),
             "duration_options": DURATION_OPTIONS,
             "default_duration": "3_days",
