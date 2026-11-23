@@ -53,16 +53,6 @@
         </button>
     </div>
 
-    {% if user %}
-    <div class="sidebar-user">
-        <div class="user-avatar">{{ user.username[0].upper() }}</div>
-        <div class="user-info">
-            <div class="user-name">{{ user.username }}</div>
-            <div class="user-role">{{ role_label }}</div>
-        </div>
-    </div>
-    {% endif %}
-
     {% set active = active_nav | default('') %}
     <nav>
         {# ── Admin: grouped, data-driven navigation ──────────────────────
