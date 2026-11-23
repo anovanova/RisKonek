@@ -7,7 +7,7 @@
 
 {% block content %}
 <div class="page-header">
-    <h1>Login History</h1>
+    <h1 id="header">Login History</h1>
     <p>Authentication events across the system — successful logins, logouts, failed
        attempts, and account lockouts. {{ summary.total }} matching event{{ 's' if summary.total != 1 else '' }}.</p>
 </div>

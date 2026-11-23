@@ -6,7 +6,7 @@
 
 {% block content %}
 <div class="page-header">
-    <h1>{{ 'Edit Equipment' if edit_mode else 'Add Equipment' }}</h1>
+    <h1 id="header">{{ 'Edit Equipment' if edit_mode else 'Add Equipment' }}</h1>
     <p>{{ 'Update equipment details. Use Status from the list view to log status changes individually.' if edit_mode else 'Register a new equipment unit. Status defaults to Available.' }}</p>
 </div>
 

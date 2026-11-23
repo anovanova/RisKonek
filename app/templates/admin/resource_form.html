@@ -6,7 +6,7 @@
 
 {% block content %}
 <div class="page-header">
-    <h1>{{ 'Edit Resource' if edit_mode else 'Add Resource' }}</h1>
+    <h1 id="header">{{ 'Edit Resource' if edit_mode else 'Add Resource' }}</h1>
     <p>{{ 'Update resource details. Quantity changes are handled via Add/Deduct Stock so they are audited individually.' if edit_mode else 'Register a new consumable resource item in the inventory.' }}</p>
 </div>
 
