@@ -59,6 +59,7 @@ from app.services.facility_details import (
     EO_MOA_MOU_STATUSES,
 )
 from app.storage import upload_file, download_file
+from pathlib import Path
 
 router = APIRouter(prefix="/bdrrmo")
 templates = Jinja2Templates(directory="app/templates")
@@ -4125,7 +4126,9 @@ def cleanup_expired_drafts(hours: int = 24):
     now = datetime.now(timezone.utc)
     expiration = timedelta(hours=hours)
 
-    for draft_path in TEMP_DIR.glob("*.json"):
+    TEMP_PATH = Path("uploads") / "temp"
+
+    for draft_path in TEMP_PATH.glob("*.json"):
 
         try:
             draft = json.loads(
