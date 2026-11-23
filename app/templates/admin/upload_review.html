@@ -140,7 +140,7 @@
 </div>
 
 <!-- ── Raw extracted preview (text or table) ──────────────────────── -->
-<div class="dash-card mb-3">
+<div class="dash-card overflow-hidden mb-3">
     <div class="card-title-row">
         <i class="bi bi-file-text"></i>
         <h6>Extracted Preview</h6>
@@ -173,7 +173,7 @@
 <!-- ── Editable structured fields → save draft / confirm ──────────── -->
 <form method="POST" action="/admin/uploads/{{ report.id }}/confirm">
             <input type="hidden" name="csrf_token" value="{{ request.session.get('csrf_token', '') }}">
-<div class="dash-card mb-3">
+<div class="dash-card overflow-hidden mb-3">
     <div class="card-title-row">
         <i class="bi bi-pencil-square"></i>
         <h6>Structured Fields {% if editable %}— Edit Before Saving{% endif %}</h6>
