@@ -39,6 +39,7 @@ from typing import Optional
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import quote_plus
 from app.storage import download_file
+from sqlalchemy import extract
 import csv
 import io
 import re
@@ -117,7 +118,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     yearly_data = {}
     for y in range(current_year - 5, current_year + 1):
         count = db.query(Incident).filter(
-            func.strftime('%Y', Incident.date_occurred) == str(y)
+            extract('year', Incident.date_occurred) == int(y)
         ).count()
         yearly_data[str(y)] = count
 
