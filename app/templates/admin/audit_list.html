@@ -26,7 +26,7 @@
         <p>System-wide record of all logged actions. {{ total }} matching entr{{ 'y' if total == 1 else 'ies' }}.</p>
     </div>
     <div class="dropdown">
-        <button class="btn btn-rk dropdown-toggle" type="button"
+        <button class="btn-rk dropdown-toggle" type="button"
                 data-bs-toggle="dropdown" aria-expanded="false"
                 {% if total == 0 %}disabled title="No entries to export"{% endif %}>
             <i class="bi bi-download"></i> Export Logs
