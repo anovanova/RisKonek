@@ -29,11 +29,7 @@ body {
 .sidebar {
   width: var(--sidebar-w);
   height: 100vh; /* exact viewport height — no overflow */
-  background: linear-gradient(
-    180deg,
-    var(--rk-green-mid) 0%,
-    var(--rk-green-dark) 100%
-  );
+  background: white;
   position: fixed;
   top: 0;
   left: 0;
@@ -1985,4 +1981,9 @@ body.facility-location-picking .map-area .leaflet-container {
 #cdrrmo-logo {
   height: 50px;
   width: 80px;
+}
+#header {
+  margin: 0;
+  color: #167736;
+  font-size: 40px;
 }
