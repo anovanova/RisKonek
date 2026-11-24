@@ -2785,6 +2785,12 @@ def planning_receive_toggle(
         status_code=302,
     )
 
+ACTIVITY_STATUS_LABELS = {
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+}
+
 @router.get("/planning/activities/{plan_id}")
 def get_activities(
     plan_id: int,
@@ -2811,6 +2817,21 @@ def get_activities(
     )
 
     activities = db.scalars(query).all()
+
+    view_rows = []
+        
+    for r in activities:
+        view_rows.append({
+            "id": r.id,
+            "title": r.title,
+            "start_date": r.start_date,
+            "status_value": r.status.value if r.status else "",
+            "status_label": ACTIVITY_STATUS_LABELS.get(
+                r.status.value if r.status else "", "—"
+            ),
+            "is_proof_submitted": r.is_proof_submitted,
+            "reason": r.reason,
+        })
     
 
     return templates.TemplateResponse(
@@ -2820,7 +2841,7 @@ def get_activities(
             "user": user,
             "active_nav": "planning",
             "plan": plan,
-            "activities": activities
+            "activities": view_rows
         },
     )
 
@@ -2853,10 +2874,12 @@ async def view_proof_document(
         }
     )
 
-@router.post("/activities/{activity_id}/approve")
-async def approve_activity( 
+@router.post("/activities/{activity_id}/status")
+async def change_status_activity( 
     activity_id: int,
     request: Request,
+    status: str = Form(...),
+    reason: str = Form(""),
     db: Session = Depends(get_db), 
 ):
     user = require_role(request, ["admin"])
@@ -2868,9 +2891,13 @@ async def approve_activity(
     if not activity:
         return RedirectResponse(url="/admin/planning", status_code=302)
 
-    activity.status = "approved"
+    activity.status = status
+    activity.reason = reason
 
-    verb = "approved"
+    if status == "rejected":
+        activity.is_proof_submitted = False
+
+    verb = status
     log_action(
         db, user["id"], verb, "Activity", activity.id,
         f"Activity '{activity.title}' {verb}.",
@@ -2879,7 +2906,7 @@ async def approve_activity(
     db.commit()
 
     return RedirectResponse(
-        url=f"/admin/planning?success={activity.title}+approved",
+        url=f"/admin/planning?success={activity.title}+marked+{status}",
         status_code=302,
     )
 
