@@ -3568,8 +3568,8 @@ def planning_archive_toggle(
 
     verb = "archived" if p.is_archived else "restored"
     log_action(
-        db, user["id"], verb, "equipment", p.id,
-        f"Equipment '{p.file_name}' {verb}.",
+        db, user["id"], verb, "Planning", p.id,
+        f"Planning '{p.file_name}' {verb}.",
     )
 
     url = "/bdrrmo/planning?archived=1&success=" + verb.title() if p.is_archived \
@@ -3642,6 +3642,12 @@ def planning_review(
         
         p.summary = ai_json['summary']
         p.recommendation = ai_json['recommendation']
+
+    verb = "retry"
+    log_action(
+        db, user["id"], verb, "Planning", p.id,
+        f"Planning retry '{p.file_name}' {verb}.",
+    )
 
     db.commit()
 
@@ -3796,6 +3802,17 @@ async def save_confirmed_activities(
         # Commit document and activities together
         db.commit()
 
+        verb = "saved"
+        log_action(
+            db, user["id"], verb, "Planning", activity.id,
+            f"Planning '{activity.title}' {verb}.",
+        )
+
+        log_action(
+            db, user["id"], verb, "Activities", activity.id,
+            f"Activities for '{activity.title}' {verb}.",
+        )
+
         # Remove temporary draft metadata
         delete_temporary_draft(draft_id)
 
@@ -3813,7 +3830,7 @@ async def save_confirmed_activities(
 
 @router.get("/planning/activities/{plan_id}")
 def get_activities(
-    plan_id: str,
+    plan_id: int,
     request: Request,
     db: Session = Depends(get_db),
 ):
@@ -3856,7 +3873,7 @@ def get_activities(
     )
 
 @router.post("/activities/{activity_id}/submit")
-async def planning_upload_submit(
+async def activity_proof_submit(
     request: Request,
     activity_id: str,
     db: Session = Depends(get_db),
@@ -3902,11 +3919,18 @@ async def planning_upload_submit(
             file_name=file.filename,
             file_path=file_key,
             activity_id=activity_id,
+            uploaded_by=user["id"],
         )
 
         db.add(activity_proof)
 
         a.is_proof_submitted = True
+
+        verb = "submitted"
+        log_action(
+            db, user["id"], verb, "ActivityProof", a.id,
+            f"Activity Proof for '{a.title}' {verb}.",
+        )
 
         db.commit()
 

@@ -2710,8 +2710,8 @@ def planning_archive_toggle(
 
     verb = "archived" if p.is_archived else "restored"
     log_action(
-        db, user["id"], verb, "equipment", p.id,
-        f"Equipment '{p.file_name}' {verb}.",
+        db, user["id"], verb, "Plan", p.id,
+        f"Plan '{p.file_name}' {verb}.",
     )
 
     url = "/admin/planning?archived=1&success=" + verb.title() if p.is_archived \
@@ -2742,6 +2742,12 @@ def planning_archive_toggle(
         p.summary = ai_json['summary']
         p.recommendation = ai_json['recommendation']
 
+    verb = p.status
+    log_action(
+        db, user["id"], verb, "Plan", p.id,
+        f"Plan '{p.file_name}' {verb}.",
+    )
+
     db.commit()
 
     return RedirectResponse(
@@ -2766,6 +2772,12 @@ def planning_receive_toggle(
     p.is_hardcopy_received = True
     p.hardcopy_received_date = date
 
+    verb = "received"
+    log_action(
+        db, user["id"], verb, "Plan", p.id,
+        f"Plan '{p.file_name}' {verb}.",
+    )
+
     db.commit()
 
     return RedirectResponse(
@@ -2775,7 +2787,7 @@ def planning_receive_toggle(
 
 @router.get("/planning/activities/{plan_id}")
 def get_activities(
-    plan_id: str,
+    plan_id: int,
     request: Request,
     db: Session = Depends(get_db),
 ):
@@ -2857,6 +2869,12 @@ async def approve_activity(
         return RedirectResponse(url="/admin/planning", status_code=302)
 
     activity.status = "approved"
+
+    verb = "approved"
+    log_action(
+        db, user["id"], verb, "Activity", activity.id,
+        f"Activity '{activity.title}' {verb}.",
+    )
 
     db.commit()
 
