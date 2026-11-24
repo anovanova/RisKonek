@@ -214,6 +214,11 @@ class User(Base):
         back_populates="uploaded_by_user",
         foreign_keys="Planning.uploaded_by",
     )
+    uploaded_proof = relationship(
+        "ActivityProof",
+        back_populates="uploaded_by_user",
+        foreign_keys="ActivityProof.uploaded_by",
+    )
 
 # ==========================
 # TABLE 3: Population - census data per brgy
@@ -710,6 +715,7 @@ class Activity(Base):
     start_date = Column(Date, nullable=False)
     status = Column(Enum(ActivityStatus), default=ActivityStatus.pending)
     is_proof_submitted = Column(Boolean, default=False)
+    reason = Column(Text, nullable=True)
     planning = relationship(
         "Planning",
         back_populates="activities"
@@ -734,6 +740,12 @@ class ActivityProof(Base):
     file_name = Column(String(150), nullable=False)
     file_path = Column(String(500), nullable=False)
     created_at = Column(DateTime, server_default=func.now())
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    uploaded_by_user = relationship(
+        "User", back_populates="uploaded_proof", foreign_keys=[uploaded_by]
+    )
+
     activity = relationship(
         "Activity",
         back_populates="proof"
