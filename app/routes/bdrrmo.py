@@ -3875,7 +3875,7 @@ def get_activities(
 @router.post("/activities/{activity_id}/submit")
 async def activity_proof_submit(
     request: Request,
-    activity_id: str,
+    activity_id: int,
     db: Session = Depends(get_db),
     file: UploadFile = File(...),
 ):
@@ -3930,6 +3930,76 @@ async def activity_proof_submit(
         log_action(
             db, user["id"], verb, "ActivityProof", a.id,
             f"Activity Proof for '{a.title}' {verb}.",
+        )
+
+        db.commit()
+
+        return RedirectResponse(
+            url=f"/bdrrmo/planning", status_code=302
+        )
+    
+    except Exception as e:
+        print(e)
+        db.rollback()
+
+        return RedirectResponse(
+            url=f"/bdrrmo/planning?error=File+not+saved,+try+again", status_code=302
+        )
+
+@router.post("/activities/{activity_id}/retry")
+async def activity_proof_retry(
+    request: Request,
+    activity_id: int,
+    db: Session = Depends(get_db),
+    file: UploadFile = File(...),
+):
+    user, barangay = _resolve_scope(request, db)
+    if isinstance(user, RedirectResponse):
+        return user
+    if not barangay:
+        return RedirectResponse(
+            url="/bdrrmo/planning?error=No+barangay+is+assigned+to+your+account",
+            status_code=302,
+        )
+
+    original_name = file.filename
+    ext = _ext_of(original_name)
+    if ext != ".pdf":
+        return RedirectResponse(
+            url="/bdrrmo/planning?error=Unsupported+file+type.+Allowed:+PDF",
+            status_code=302,
+        )
+
+    a = db.query(Activity).filter(Activity.id == activity_id).first()
+    p = db.query(Planning).filter(Planning.id == a.planning_id).first()
+
+    if p.status != "approved":
+        return RedirectResponse(
+            url="/bdrrmo/planning?error=Plan+not+approved+yet",
+            status_code=302,
+        )
+        
+
+    try:
+        stored_name = _safe_filename(file.filename)
+
+        file_key = upload_file(
+            file,
+            filename=stored_name,
+            folder="documents"
+        )
+
+        activity_proof = db.query(ActivityProof).filter(ActivityProof.activity_id == activity_id).first()
+
+        activity_proof.file_name = file.filename
+        activity_proof.file_path = file_key
+        a.status = "pending"
+        a.is_proof_submitted = True
+
+        verb = "retry"
+        log_action(
+            db, user["id"], verb, "ActivityProof", a.id,
+            f"Activity Proof Retry for '{a.title}' {verb}.",
         )
 
         db.commit()

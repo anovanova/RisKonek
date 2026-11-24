@@ -51,6 +51,11 @@
             Plan not approved yet
             </button> 
 
+          {% elif activity.status == "rejected"%}
+            <button type="button" class="remove-btn btn btn-success btn-sm"
+            data-bs-toggle="modal" data-bs-target="#retryProofModal-{{ activity.id }}">
+            Retry
+            </button> 
           {% else %}
             <button type="button" class="remove-btn btn btn-primary btn-sm"
             data-bs-toggle="modal" data-bs-target="#proofModal-{{ activity.id }}">
@@ -74,6 +79,34 @@
         <input type="hidden" name="csrf_token" value="{{ request.session.get('csrf_token', '') }}">
       <div class="modal-header">
         <h6 class="modal-title">Proof Submission</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-12">
+                    
+            <label class="form-label small fw-semibold mb-1">Proof File</label>
+            <input type="file" name="file" class="form-control"
+                   accept=".pdf" required>
+            <div class="form-text">Supported: PDF only</div>
+     
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn-rk btn-sm">Submit</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal fade" id="retryProofModal-{{ activity.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="POST" action="/bdrrmo/activities/{{ activity.id }}/retry" enctype="multipart/form-data" class="modal-content" data-validate>
+        <input type="hidden" name="csrf_token" value="{{ request.session.get('csrf_token', '') }}">
+      <div class="modal-header">
+        <h6 class="modal-title">Retry Proof Submission</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
