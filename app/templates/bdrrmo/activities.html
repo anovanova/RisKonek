@@ -56,6 +56,10 @@
             data-bs-toggle="modal" data-bs-target="#retryProofModal-{{ activity.id }}">
             Retry
             </button> 
+            <button type="button" class="btn btn-outline-primary btn-sm"
+              data-bs-toggle="modal" data-bs-target="#reasonModal-{{ activity.id }}">
+              <i class="bi bi-eye"></i> View Reason
+            </button>
           {% else %}
             <button type="button" class="remove-btn btn btn-primary btn-sm"
             data-bs-toggle="modal" data-bs-target="#proofModal-{{ activity.id }}">
@@ -126,6 +130,24 @@
         <button type="submit" class="btn-rk btn-sm">Submit</button>
       </div>
     </form>
+  </div>
+</div>
+
+<div class="modal fade" id="reasonModal-{{ activity.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h6 class="modal-title">Reason</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <p class="text-center">{{activity.reason}}</p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        </div>
+    </div>
+    
   </div>
 </div>
 
