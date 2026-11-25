@@ -131,7 +131,7 @@ body {
   justify-content: center;
   font-weight: 700;
   color: white;
-  font-size: 13px;
+  font-size: 14px;
   flex-shrink: 0;
 }
 .sidebar-user .user-info {
@@ -139,12 +139,12 @@ body {
 }
 .sidebar-user .user-name {
   color: white;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
 }
 .sidebar-user .user-role {
   color: rgba(255, 255, 255, 0.6);
-  font-size: 11px;
+  font-size: 14px;
 }
 
 /* Nav scrolls; sidebar-footer stays pinned at bottom */
@@ -172,7 +172,7 @@ body {
   margin: 16px 0 8px; /* group top spacing (16px) + label bottom (8px) */
   padding: 0 16px;
   color: #35a839;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -194,7 +194,7 @@ body {
   border-radius: 10px 0 0px 10px;
   color: rgba(22, 22, 22, 0.78);
   text-decoration: none;
-  font-size: 14px; /* px — consistent at all zoom levels */
+  font-size: 16px; /* px — consistent at all zoom levels */
   font-weight: 400; /* explicit — blocks Bootstrap .active bold override */
   transition:
     background 0.15s,
@@ -252,7 +252,7 @@ body {
 /* Logout mirrors the nav-item metrics so its icon/label line up with the menu. */
 .sidebar-footer a {
   color: rgba(226, 0, 0, 0.94);
-  font-size: 14px;
+  font-size: 16px;
   text-decoration: none;
   display: flex;
   align-items: center;
@@ -324,7 +324,7 @@ html.rk-sidebar-collapsed .sidebar .sidebar-footer .nav-label {
 
 /* ── Main content ──────────────────────────────────────────── */
 body {
-  font-size: 14px; /* px baseline — scales identically with sidebar under zoom */
+  font-size: 16px; /* px baseline — scales identically with sidebar under zoom */
 }
 .main-content {
   margin-left: var(--sidebar-w);
@@ -355,11 +355,11 @@ html.rk-no-anim .main-content {
 }
 .page-header p {
   color: var(--rk-muted);
-  font-size: 13px;
+  font-size: 14px;
   margin: 3px 0 0;
 }
 .last-updated {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--rk-muted);
   text-align: right;
 }
@@ -384,7 +384,7 @@ html.rk-no-anim .main-content {
 }
 
 .stat-card .stat-label {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--rk-muted);
   margin-bottom: 6px;
 }
@@ -396,7 +396,7 @@ html.rk-no-anim .main-content {
   word-break: break-word;
 }
 .stat-card .stat-change {
-  font-size: 12px;
+  font-size: 14px;
   margin-top: 4px;
 }
 .stat-card .stat-icon {
@@ -416,7 +416,7 @@ html.rk-no-anim .main-content {
   margin-bottom: 16px;
 }
 .dash-card .card-title-row h6 {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--rk-text);
   margin: 0;
@@ -506,7 +506,7 @@ html.rk-no-anim .main-content {
   color: var(--rk-text);
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 500;
   padding: 6px 14px;
   transition: background 0.15s;
@@ -540,7 +540,7 @@ html.rk-no-anim .main-content {
   border-left: 4px solid #ffc107;
   border-radius: 8px;
   padding: 10px 14px;
-  font-size: 13px;
+  font-size: 14px;
   color: #856404;
   margin-bottom: 16px;
   display: flex;
