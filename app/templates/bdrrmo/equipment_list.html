@@ -33,7 +33,7 @@
         <h1 id="header">Vehicle &amp; Equipment Monitoring</h1>
         <p>Operational disaster-response equipment (vehicles, generators, chainsaws, rescue boats, radios, flashlights, life vests).</p>
     </div>
-    <a href="/bdrrmo/equipment_bdrrmo/new" class="btn btn-rk">
+    <a href="/bdrrmo/equipment_bdrrmo/new" class="btn-rk text-decoration-none">
         <i class="bi bi-plus-lg"></i> Add Equipment
     </a>
 </div>
@@ -53,54 +53,6 @@
 </div>
 {% endif %}
 
-<!-- ── Summary cards ──────────────────────────────────────────── -->
-<div class="row g-3 mb-3">
-    <div class="col-md-3">
-        <div class="stat-card d-flex justify-content-between align-items-center">
-            <div>
-                <div class="stat-label">Active Units</div>
-                <div class="stat-value">{{ summary.total }}</div>
-            </div>
-            <div class="stat-icon rk-tint-green-alt">
-                <i class="bi bi-truck"></i>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stat-card d-flex justify-content-between align-items-center">
-            <div>
-                <div class="stat-label">Available</div>
-                <div class="stat-value">{{ summary.available }}</div>
-            </div>
-            <div class="stat-icon rk-tint-green-alt">
-                <i class="bi bi-check2-circle"></i>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stat-card d-flex justify-content-between align-items-center">
-            <div>
-                <div class="stat-label">Deployed</div>
-                <div class="stat-value">{{ summary.deployed }}</div>
-            </div>
-            <div class="stat-icon rk-tint-blue-alt">
-                <i class="bi bi-broadcast-pin"></i>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stat-card d-flex justify-content-between align-items-center">
-            <div>
-                <div class="stat-label">Under Repair / Unserviceable</div>
-                <div class="stat-value">{{ summary.under_repair + summary.unserviceable }}</div>
-            </div>
-            <div class="stat-icon rk-tint-red">
-                <i class="bi bi-tools"></i>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- ── Filters ────────────────────────────────────────────────── -->
 <div class="dash-card mb-3">
     <form method="GET" action={{equipment_route}} class="row g-2 align-items-end js-live-filter">
@@ -115,15 +67,6 @@
                 <option value="">All types</option>
                 {% for v, label in types %}
                 <option value="{{ v }}" {% if f_type == v %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label small fw-semibold mb-1">Status</label>
-            <select name="status" class="form-select form-select-sm">
-                <option value="">Any</option>
-                {% for v, label in statuses %}
-                <option value="{{ v }}" {% if f_status == v %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -150,7 +93,6 @@
                 <tr class="rk-th-soft">
                     <th class="px-3 py-3">Equipment</th>
                     <th class="py-3">Type</th>
-                    <th class="py-3">Status</th>
                     <th class="py-3">Assigned</th>
                     <th class="py-3">Plate / Serial</th>
                     <th class="py-3">Last Inspected</th>
@@ -162,7 +104,6 @@
                 <tr class="rk-fs-13">
                     <td class="px-3 fw-semibold">{{ e.name }}</td>
                     <td>{{ e.type_label }}</td>
-                    <td>{{ status_pill(e.status_value, e.status_label) }}</td>
                     <td class="text-muted">{{ e.assigned }}</td>
                     <td class="text-muted">{{ e.plate_or_serial }}</td>
                     <td class="text-muted">{{ e.last_inspected.strftime('%Y-%m-%d') if e.last_inspected else '—' }}</td>
@@ -176,10 +117,6 @@
                         </a>
                         {% endif %}
                         {% if not e.is_archived %}
-                        <button type="button" class="btn btn-outline-primary btn-sm"
-                                data-bs-toggle="modal" data-bs-target="#statusModal-{{ e.id }}">
-                            <i class="bi bi-arrow-repeat"></i> Status
-                        </button>
                         <a href="/bdrrmo/equipment_bdrrmo/{{ e.id }}/edit"
                            class="btn btn-outline-secondary btn-sm">
                             <i class="bi bi-pencil"></i>

@@ -22,7 +22,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-start page-header">
     <div>
-        <h1 id="header">Vehicle &amp; Equipment Monitoring</h1>
+        <h1 id="header">Vehicle &amp; Equipment</h1>
         <p>Operational disaster-response equipment (vehicles, generators, chainsaws, rescue boats, radios, flashlights, life vests).</p>
     </div>
 </div>
@@ -44,50 +44,17 @@
 
 <!-- ── Summary cards ──────────────────────────────────────────── -->
 <div class="row g-3 mb-3">
-    <div class="col-md-3">
-        <div class="stat-card d-flex justify-content-between align-items-center">
-            <div>
-                <div class="stat-label">Active Units</div>
-                <div class="stat-value">{{ summary.total }}</div>
-            </div>
-            <div class="stat-icon rk-tint-green-alt">
-                <i class="bi bi-truck"></i>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stat-card d-flex justify-content-between align-items-center">
-            <div>
-                <div class="stat-label">Available</div>
-                <div class="stat-value">{{ summary.available }}</div>
-            </div>
-            <div class="stat-icon rk-tint-green-alt">
-                <i class="bi bi-check2-circle"></i>
+
+    {% for vehicle in vehicles %}
+        <div class="col-md-3">
+            <div class="stat-card d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="stat-label">{{ vehicle.equipment_name }}</div>
+                    <div class="stat-value">{{ vehicle.total }}</div>
+                </div>
             </div>
         </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stat-card d-flex justify-content-between align-items-center">
-            <div>
-                <div class="stat-label">Deployed</div>
-                <div class="stat-value">{{ summary.deployed }}</div>
-            </div>
-            <div class="stat-icon rk-tint-blue-alt">
-                <i class="bi bi-broadcast-pin"></i>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stat-card d-flex justify-content-between align-items-center">
-            <div>
-                <div class="stat-label">Under Repair / Unserviceable</div>
-                <div class="stat-value">{{ summary.under_repair + summary.unserviceable }}</div>
-            </div>
-            <div class="stat-icon rk-tint-red">
-                <i class="bi bi-tools"></i>
-            </div>
-        </div>
-    </div>
+    {% endfor %}
 </div>
 
 <!-- ── Filters ────────────────────────────────────────────────── -->
@@ -118,15 +85,6 @@
             </select>
         </div>
         <div class="col-md-2">
-            <label class="form-label small fw-semibold mb-1">Status</label>
-            <select name="status" class="form-select form-select-sm">
-                <option value="">Any</option>
-                {% for v, label in statuses %}
-                <option value="{{ v }}" {% if f_status == v %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-md-2">
             <label class="form-label small fw-semibold mb-1">View</label>
             <select name="archived" class="form-select form-select-sm">
                 <option value=""  {% if not show_archived %}selected{% endif %}>Active</option>
@@ -150,10 +108,7 @@
                     <th class="px-3 py-3">Barangay</th>
                     <th class="px-3 py-3">Equipment</th>
                     <th class="py-3">Type</th>
-                    <th class="py-3">Status</th>
-                    <th class="py-3">Assigned</th>
                     <th class="py-3">Plate / Serial</th>
-                    <th class="py-3">Last Inspected</th>
                 </tr>
             </thead>
             <tbody>
@@ -162,10 +117,7 @@
                     <td class="px-3 fw-semibold">{{ e.barangay }}</td>
                     <td class="px-3 fw-semibold">{{ e.name }}</td>
                     <td>{{ e.type_label }}</td>
-                    <td>{{ status_pill(e.status_value, e.status_label) }}</td>
-                    <td class="text-muted">{{ e.assigned }}</td>
                     <td class="text-muted">{{ e.plate_or_serial }}</td>
-                    <td class="text-muted">{{ e.last_inspected.strftime('%Y-%m-%d') if e.last_inspected else '—' }}</td>
                 </tr>
                 {% else %}
                 <tr>

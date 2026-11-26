@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
 from datetime import datetime, date, timezone, timedelta
 from urllib.parse import quote_plus
@@ -182,13 +182,38 @@ def profile(request: Request, db: Session = Depends(get_db)):
         )
 
     barangay_id = user["barangay_id"]
+    
+
+    stmt = select(Planning).order_by(Planning.created_at.desc()).where(Planning.barangay_id == barangay_id,).limit(1)
+    latest_plan = db.scalars(stmt).first()
 
     upcoming_activities = get_upcoming_activities(db, barangay_id)
+
+    upcoming_activities_number = len(upcoming_activities)
+
+    submitted_count, not_submitted_count, total = get_submitted_activities(db, latest_plan.id)
+
+    status = ''
+
+    if latest_plan.status == 'approved':
+        status = "Approved"
+    elif latest_plan.status == 'pending':
+        status = "Pending"
+    else:
+        status = "Rejected"
+    
 
     context = barangay_profile_context(db, barangay)
     context["user"] = user
     context["active_nav"] = "bdrrmo_profile"
     context["upcoming_activities"] = upcoming_activities
+    context["upcoming_activities_number"] = upcoming_activities_number
+    context["plan_status"] = status
+    context["activities_total"] = total
+    context["activities_submitted"] = submitted_count
+    context["activities_not_submitted"] = not_submitted_count
+    context["activities_data_chart"] = get_activity_status_summary(db, latest_plan.id)
+    context["accomplishments_data_chart"] = get_activity_accomplishment_summary(db, latest_plan.id)
     return templates.TemplateResponse(
         request=request, name="bdrrmo/profile.html", context=context
     )
@@ -3069,7 +3094,7 @@ def equipment_list(
 
 @router.get("/equipment_bdrrmo/new", response_class=HTMLResponse)
 def equipment_new_form(request: Request, db: Session = Depends(get_db)):
-    user, _ = _resolve_scope(request, db)
+    user, barangay = _resolve_scope(request, db)
     if isinstance(user, RedirectResponse):
         return user
     return templates.TemplateResponse(
@@ -3080,6 +3105,7 @@ def equipment_new_form(request: Request, db: Session = Depends(get_db)):
             "active_nav": "equipment",
             "edit_mode": False,
             "target": None,
+            "barangay": barangay,
             "types": [(t.value, EQUIPMENT_TYPE_LABELS.get(t.value, t.value.title()))
                       for t in EquipmentType],
             "status_choices": [(v, EQUIPMENT_STATUS_LABELS[v]) for v in EQUIPMENT_STATUS_CHOICES],
@@ -4215,6 +4241,70 @@ def get_upcoming_activities(db, barangay_id):
     )
 
     return db.scalars(query).all()
+
+def get_submitted_activities(db, planning_id):
+
+    query = (
+        select(Activity)
+        .where(
+            Activity.planning_id >= planning_id,
+        )
+    )
+
+    data = db.scalars(query).all()
+
+    submitted_count = 0
+    not_submitted_count = 0
+    total = len(data)
+
+    for item in data:
+        if item.is_proof_submitted == True:
+            submitted_count += 1
+        else:
+            not_submitted_count += 1
+
+    return submitted_count, not_submitted_count, total
+
+def get_activity_status_summary(db, planning_id=None):
+    stmt = (
+        select(
+            Activity.status,
+            func.count(Activity.id).label("total")
+        )
+        .group_by(Activity.status)
+    )
+
+    if planning_id:
+        stmt = stmt.where(Activity.planning_id == planning_id)
+
+    results = db.execute(stmt).all()
+
+    return {
+        "pending": 0,
+        "approved": 0,
+        "rejected": 0,
+        **{status: total for status, total in results}
+    }
+
+def get_activity_accomplishment_summary(db, planning_id=None):
+    stmt = (
+        select(
+            Activity.is_proof_submitted,
+            func.count(Activity.id).label("total")
+        )
+        .group_by(Activity.is_proof_submitted)
+    )
+
+    if planning_id:
+        stmt = stmt.where(Activity.planning_id == planning_id)
+
+    results = db.execute(stmt).all()
+
+    return {
+        "True": 0,
+        "False": 0,
+        **{is_proof_submitted: total for is_proof_submitted, total in results}
+    }
 
 def cleanup_expired_drafts(hours: int = 24):
 

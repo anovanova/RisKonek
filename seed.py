@@ -422,9 +422,7 @@ if not os.path.exists(DEFAULT_EXCEL_PATH):
 
 test_users = [
     {"username": "admin",    "email": "admin@riskonek.com",   "role": UserRole.admin,        "barangay": None},
-    {"username": "cfau_oic", "email": "cfau@riskonek.com",    "role": UserRole.cfau_oic,     "barangay": None},
     {"username": "bdrrmo1",  "email": "bdrrmo1@riskonek.com", "role": UserRole.bdrrmo,       "barangay": "Cuyab"},
-    {"username": "staff1",   "email": "staff1@riskonek.com",  "role": UserRole.cdrrmo_staff, "barangay": None},
 ]
 
 user_count = 0
@@ -467,8 +465,6 @@ db.close()
 print("\n✓ Database seeded successfully!")
 print("\nTest accounts (password: password123)")
 print("  admin      → /admin/dashboard")
-print("  cfau_oic   → /cfau/dashboard")
 print("  bdrrmo1    → /bdrrmo/profile  (Cuyab)")
-print("  staff1     → /staff/dashboard")
 print("\nNOTE: All data is for demonstration purposes.")
 print("Replace with actual CDRRMO records before deployment.")

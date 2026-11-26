@@ -475,6 +475,10 @@ html.rk-no-anim .main-content {
   background: #fee2e2;
   color: #dc2626;
 }
+.status-none {
+  background: #e7e7e7;
+  color: #838383;
+}
 
 /* ── Buttons ───────────────────────────────────────────────── */
 .btn-rk {

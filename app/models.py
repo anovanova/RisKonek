@@ -9,9 +9,7 @@ import enum
 
 class UserRole(str, enum.Enum):
     admin = "admin"
-    cfau_oic = "cfau_oic"
     bdrrmo = "bdrrmo"
-    cdrrmo_staff = "cdrrmo_staff"
 
 class RiskLevel(str, enum.Enum):
     low = "low"

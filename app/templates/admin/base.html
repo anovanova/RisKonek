@@ -64,7 +64,7 @@
             {'label': 'Overview', 'items': [
                 {'href': '/admin/dashboard', 'icon': 'bi-grid-1x2-fill', 'text': 'Dashboard', 'key': 'analytics'}
             ]},
-            {'label': 'Field Data & Mapping', 'items': [
+            {'label': 'Barangays', 'items': [
                 {'href': '/admin/barangays', 'icon': 'bi-geo-alt-fill', 'text': 'Barangay Field Data', 'key': 'barangays'},
                 {'href': '/admin/contacts', 'icon': 'bi-person-vcard', 'text': 'Contact Directory', 'key': 'contacts', 'title': 'Barangay officials and emergency responder contacts (read-only)'},
                 {'href': '/admin/map', 'icon': 'bi-map-fill', 'text': 'Facility Map', 'key': 'map'}
@@ -132,11 +132,6 @@
             class="nav-item-link {{ 'active' if active == 'bdrrmo_population' else '' }}"
             title="Record and view population data for your barangay">
                 <i class="bi bi-people-fill nav-icon"></i><span class="nav-label">Population Records</span>
-            </a>
-            <a href="/bdrrmo/contacts"
-            class="nav-item-link {{ 'active' if active == 'bdrrmo_contacts' else '' }}"
-            title="Manage officials and emergency responder contacts">
-                <i class="bi bi-person-vcard nav-icon"></i><span class="nav-label">Contact Details</span>
             </a>
             <a href="/bdrrmo/directory"
             class="nav-item-link {{ 'active' if active == 'bdrrmo_directory' else '' }}"
