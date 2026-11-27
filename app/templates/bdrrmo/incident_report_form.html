@@ -4,9 +4,15 @@
 
 {% set active_nav = 'bdrrmo_incident_reports' %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+    #header { margin: 0; color: #167736; font-size: 40px;}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
-    <h1>{{ 'Edit Post-Incident Report' if edit_mode else 'New Post-Incident Report' }}</h1>
+    <h1 id="header">{{ 'Edit Post-Incident Report' if edit_mode else 'New Post-Incident Report' }}</h1>
     <p>Document your response operations after a disaster. The disaster type and date come
        from the linked incident record — only incidents in
        {% if barangay %}Barangay {{ barangay.name }}{% else %}your barangay{% endif %} can be selected.</p>
@@ -86,7 +92,7 @@
             <button type="submit" name="action" value="draft" class="btn btn-outline-primary">
                 <i class="bi bi-save"></i> {{ 'Save Draft' if not edit_mode else 'Save Changes' }}
             </button>
-            <button type="submit" name="action" value="submit" class="btn btn-rk"
+            <button type="submit" name="action" value="submit" class="btn-rk"
                     data-confirm='Submit this report? You will no longer be able to edit it.'>
                 <i class="bi bi-send"></i> Submit
             </button>

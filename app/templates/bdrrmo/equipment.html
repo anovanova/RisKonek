@@ -8,8 +8,14 @@
 {% set status_labels = {'available': 'Available', 'under_maintenance': 'Under Maintenance', 'unavailable': 'Unavailable'} %}
 {% set status_classes = {'available': 'status-operational', 'under_maintenance': 'status-maintenance', 'unavailable': 'status-unavailable'} %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+    #header { margin: 0; color: #167736; font-size: 40px;}
+</style>
+{% endblock %}
+
 <div class="page-header">
-    <h1>Equipment &amp; Vehicles</h1>
+    <h1 id="header">Equipment &amp; Vehicles</h1>
     <p>Manage equipment and vehicles owned by
        {% if barangay %}Barangay {{ barangay.name }}{% else %}your barangay{% endif %}.
        Separate from city logistics — barangay-scoped only.</p>
@@ -109,7 +115,7 @@
                    placeholder="e.g. Due for oil change, minor hull repair">
         </div>
         <div class="col-12">
-            <button type="submit" class="btn btn-rk btn-sm">
+            <button type="submit" class="btn-rk btn-sm">
                 <i class="bi bi-save"></i> {{ 'Save Changes' if editing else 'Add Equipment' }}
             </button>
             {% if editing %}

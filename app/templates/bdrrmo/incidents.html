@@ -5,10 +5,16 @@
 
 {% set active_nav = 'bdrrmo_incidents' %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+    #header { margin: 0; color: #167736; font-size: 40px;}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-start page-header">
     <div>
-        <h1>Incident History</h1>
+        <h1 id="header">Incident History</h1>
         <p>Historical disaster incidents recorded for
            {% if barangay %}Barangay {{ barangay.name }}{% else %}your barangay{% endif %}.</p>
     </div>
@@ -82,7 +88,7 @@
                       placeholder="What happened, areas affected, response taken…"></textarea>
         </div>
         <div class="col-12">
-            <button type="submit" class="btn btn-rk btn-sm">
+            <button type="submit" class="btn-rk btn-sm">
                 <i class="bi bi-send"></i> Submit Report
             </button>
             <span class="text-muted small ms-2">
@@ -126,7 +132,7 @@
     </form>
 </div>
 
-<div class="dash-card p-0">
+<div class="dash-card overflow-hidden p-0">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="rk-bg-soft">

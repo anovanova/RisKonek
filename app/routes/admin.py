@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response, FileResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, select
+from sqlalchemy.orm import Session, joinedload, aliased
+from sqlalchemy import func, select, exists, or_
 from app.database import get_db
 from app.models import (
     User, UserRole, Barangay, AuditLog, Incident,
@@ -39,6 +39,7 @@ from typing import Optional
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import quote_plus
 from app.storage import download_file
+from sqlalchemy import extract
 import csv
 import io
 import re
@@ -117,7 +118,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     yearly_data = {}
     for y in range(current_year - 5, current_year + 1):
         count = db.query(Incident).filter(
-            func.strftime('%Y', Incident.date_occurred) == str(y)
+            extract('year', Incident.date_occurred) == int(y)
         ).count()
         yearly_data[str(y)] = count
 
@@ -161,12 +162,52 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         AuditLog.timestamp.desc()
     ).limit(5).all()
 
+    barangays_with_planning = db.scalar(
+        select(func.count(Barangay.id)).where(
+            exists().where(
+                Planning.barangay_id == Barangay.id
+            )
+        )
+    )
+
+    reviewed_plans = db.scalar(
+        select(func.count(Barangay.id)).where(
+            exists().where(
+                Planning.barangay_id == Barangay.id,
+                or_(Planning.status == "approved", Planning.status == "rejected")
+            )
+        )
+    )
+
+    barangays_without_planning = (
+        total_barangays - barangays_with_planning
+    )
+
+    activities = db.query(Activity).count()
+
+    pending_activities = db.query(Activity).filter(
+        Activity.status == "pending",
+        Activity.is_proof_submitted == True
+    ).count()
+
+    reviewed_activities = db.query(Activity).filter(
+        Activity.status != "pending",
+    ).count()
+
     return templates.TemplateResponse(
         request=request,
         name="admin/dashboard.html",
         context={
             "user": user,
             "total_barangays": total_barangays,
+            "barangays_with_planning": barangays_with_planning,
+            "barangays_without_planning": barangays_without_planning,
+            "reviewed_plans": reviewed_plans,
+            "activities": activities,
+            "pending_activities": pending_activities,
+            "reviewed_activities": reviewed_activities,
+            "plans_data_chart": get_plans_summary(db),
+            "accomplishments_data_chart": get_activity_accomplishment_summary(db),
             "total_population": f"{total_population:,}",
             "readiness_score": readiness_score,
             "data_relevance": data_relevance,
@@ -999,37 +1040,84 @@ def barangay_list(
     q: Optional[str] = None,
     risk: Optional[str] = None,
     page: Optional[str] = None,
+    planning_status: Optional[str] = None,
     per_page: Optional[str] = None,
 ):
     user = require_role(request, ["admin"])
     if isinstance(user, RedirectResponse):
         return user
 
-    query = db.query(Barangay)
+    latest_planning_id = (
+        select(Planning.id)
+        .where(Planning.barangay_id == Barangay.id)
+        .order_by(
+            Planning.created_at.desc(),
+            Planning.id.desc()
+        )
+        .limit(1)
+        .correlate(Barangay)
+        .scalar_subquery()
+    )
+
+    # Alias for the latest planning record
+    LatestPlanning = aliased(Planning)
+
+    query = (
+        db.query(Barangay, LatestPlanning)
+        .outerjoin(
+            LatestPlanning,
+            LatestPlanning.id == latest_planning_id
+        )
+    )
+
+    # Search barangay name
     if q:
         like = f"%{q.strip()}%"
         query = query.filter(Barangay.name.ilike(like))
+
+    # Filter risk level
     if risk and risk in {r.value for r in RiskLevel}:
         query = query.filter(Barangay.risk_level == RiskLevel(risk))
 
+    # Filter latest planning status
+    if planning_status:
+        query = query.filter(LatestPlanning.status == planning_status)
+
+    # Fetch barangays
     barangays = query.order_by(Barangay.name).all()
 
     rows = []
-    for brgy in barangays:
-        pop = db.query(Population).filter(
-            Population.barangay_id == brgy.id
-        ).order_by(Population.recorded_at.desc()).first()
+
+    for brgy, planning in barangays:
+        pop = (
+            db.query(Population)
+            .filter(Population.barangay_id == brgy.id)
+            .order_by(Population.recorded_at.desc())
+            .first()
+        )
+
         rows.append({
             "id": brgy.id,
             "name": brgy.name,
             "population": pop.total_population if pop else 0,
             "vulnerable_pct": _vulnerable_percent(pop),
             "risk_level": brgy.risk_level.value if brgy.risk_level else "low",
+            "planning_status": planning.status.value if planning and planning.status else None,
         })
 
     total_count = len(rows)
-    page_obj = paginate(rows, parse_page(page), parse_per_page(per_page))
-    base_query = build_base_query({"q": q or "", "risk": risk or ""})
+
+    page_obj = paginate(
+        rows,
+        parse_page(page),
+        parse_per_page(per_page)
+    )
+
+    base_query = build_base_query({
+        "q": q or "",
+        "risk": risk or "",
+        "planning_status": planning_status or "",
+    })
 
     return templates.TemplateResponse(
         request=request,
@@ -1041,6 +1129,8 @@ def barangay_list(
             "base_query": base_query,
             "q": q or "",
             "risk_filter": risk or "",
+            "planning_status_filter": planning_status or "",
+            "planning_status": [r.value for r in PlanningStatus],
             "risk_levels": [r.value for r in RiskLevel],
             "total_count": total_count,
         },
@@ -1867,6 +1957,29 @@ def equipment_list(
     # by the helper). Reused as-is for both the badges and the count.
     reminders = equipment_repair_reminders(db)
 
+    stmt_vehicles = (
+        select(
+            Equipment.equipment_type,
+            func.count(Equipment.id).label("total")
+        )
+        .where(Equipment.equipment_type.isnot(None))
+        .group_by(Equipment.equipment_type)
+        .order_by(func.count(Equipment.id).desc())
+    )
+
+    vehicles = db.execute(stmt_vehicles).all()
+
+    print(vehicles)
+
+    vehicles_data = []
+    for v in vehicles:
+        vehicles_data.append({
+            "equipment_name": EQUIPMENT_TYPE_LABELS.get(
+                v.equipment_type.value if v.equipment_type else "", "—"
+            ),
+            "total": v.total,
+        })
+
     view_rows = []
     for e in rows:
         reminder = reminders.get(e.id)
@@ -1939,6 +2052,7 @@ def equipment_list(
             "show_archived": show_archived,
             # Default + max for the status modal's date-time field (PHT).
             "now_local": datetime.now(_PHT).strftime("%Y-%m-%dT%H:%M"),
+            "vehicles": vehicles_data,
         },
     )
 
@@ -2625,6 +2739,7 @@ def planning(
     for r in rows:
         view_rows.append({
             "id": r.id,
+            "barangay": r.barangay.name,
             "file_name": r.file_name,
             "file_path": r.file_path,
             "reason": r.reason,
@@ -2709,8 +2824,8 @@ def planning_archive_toggle(
 
     verb = "archived" if p.is_archived else "restored"
     log_action(
-        db, user["id"], verb, "equipment", p.id,
-        f"Equipment '{p.file_name}' {verb}.",
+        db, user["id"], verb, "Plan", p.id,
+        f"Plan '{p.file_name}' {verb}.",
     )
 
     url = "/admin/planning?archived=1&success=" + verb.title() if p.is_archived \
@@ -2732,14 +2847,27 @@ def planning_archive_toggle(
     if not p:
         return RedirectResponse(url="/admin/planning", status_code=302)
 
+    try:
+        new_status = PlanningStatus(status) # ActivityStatus(status) in the activity route
+    except ValueError:
+        return RedirectResponse(url="/admin/planning?error=Invalid+status", status_code=302)
+    if new_status == PlanningStatus.rejected and not reason.strip():
+        return RedirectResponse(url="/admin/planning?error=Please+give+a+reason", status_code=302)
+
     p.status = status
     p.reason = reason
 
-    if(status == "approved"):
-        ai_json = planning_ai_summary(p.extracted_data)
-        
-        p.summary = ai_json['summary']
-        p.recommendation = ai_json['recommendation']
+    if new_status == PlanningStatus.approved:
+        ai_json = planning_ai_summary(p.extracted_data or {})
+        if ai_json:
+            p.summary = ai_json.get("summary")
+            p.recommendation = ai_json.get("recommendation")
+
+    verb = p.status
+    log_action(
+        db, user["id"], verb, "Plan", p.id,
+        f"Plan '{p.file_name}' {verb}.",
+    )
 
     db.commit()
 
@@ -2765,6 +2893,12 @@ def planning_receive_toggle(
     p.is_hardcopy_received = True
     p.hardcopy_received_date = date
 
+    verb = "received"
+    log_action(
+        db, user["id"], verb, "Plan", p.id,
+        f"Plan '{p.file_name}' {verb}.",
+    )
+
     db.commit()
 
     return RedirectResponse(
@@ -2772,9 +2906,15 @@ def planning_receive_toggle(
         status_code=302,
     )
 
+ACTIVITY_STATUS_LABELS = {
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+}
+
 @router.get("/planning/activities/{plan_id}")
 def get_activities(
-    plan_id: str,
+    plan_id: int,
     request: Request,
     db: Session = Depends(get_db),
 ):
@@ -2798,6 +2938,21 @@ def get_activities(
     )
 
     activities = db.scalars(query).all()
+
+    view_rows = []
+        
+    for r in activities:
+        view_rows.append({
+            "id": r.id,
+            "title": r.title,
+            "start_date": r.start_date,
+            "status_value": r.status.value if r.status else "",
+            "status_label": ACTIVITY_STATUS_LABELS.get(
+                r.status.value if r.status else "", "—"
+            ),
+            "is_proof_submitted": r.is_proof_submitted,
+            "reason": r.reason,
+        })
     
 
     return templates.TemplateResponse(
@@ -2807,7 +2962,7 @@ def get_activities(
             "user": user,
             "active_nav": "planning",
             "plan": plan,
-            "activities": activities
+            "activities": view_rows
         },
     )
 
@@ -2840,10 +2995,12 @@ async def view_proof_document(
         }
     )
 
-@router.post("/activities/{activity_id}/approve")
-async def approve_activity( 
+@router.post("/activities/{activity_id}/status")
+async def change_status_activity( 
     activity_id: int,
     request: Request,
+    status: str = Form(...),
+    reason: str = Form(""),
     db: Session = Depends(get_db), 
 ):
     user = require_role(request, ["admin"])
@@ -2855,12 +3012,22 @@ async def approve_activity(
     if not activity:
         return RedirectResponse(url="/admin/planning", status_code=302)
 
-    activity.status = "approved"
+    activity.status = status
+    activity.reason = reason
+
+    if status == "rejected":
+        activity.is_proof_submitted = False
+
+    verb = status
+    log_action(
+        db, user["id"], verb, "Activity", activity.id,
+        f"Activity '{activity.title}' {verb}.",
+    )
 
     db.commit()
 
     return RedirectResponse(
-        url=f"/admin/planning?success={activity.title}+approved",
+        url=f"/admin/planning?success={activity.title}+marked+{status}",
         status_code=302,
     )
 
@@ -2869,7 +3036,44 @@ def planning_ai_summary(extracted_data):
     ai_json = None
     if extracted_data.get("raw_text"):
         text = extracted_data["raw_text"]
-        result = text.replace(" ", "")
+        result = re.sub(r"[ \t]+", " ", text)
         ai_json = ai_summarize(result)
 
     return ai_json
+
+def get_plans_summary(db):
+    stmt = (
+        select(
+            Planning.status,
+            func.count(Planning.id).label("total")
+        )
+        .group_by(Planning.status)
+    )
+
+
+    results = db.execute(stmt).all()
+
+    return {
+        "pending": 0,
+        "approved": 0,
+        "rejected": 0,
+        **{status: total for status, total in results}
+    }
+
+def get_activity_accomplishment_summary(db):
+    stmt = (
+        select(
+            Activity.status,
+            func.count(Activity.id).label("total")
+        )
+        .group_by(Activity.status)
+    )
+
+    results = db.execute(stmt).all()
+
+    return {
+        "pending": 0,
+        "approved": 0,
+        "rejected": 0,
+        **{is_proof_submitted: total for is_proof_submitted, total in results}
+    }

@@ -6,7 +6,7 @@
 
 {% block content %}
 <div class="page-header">
-    <h1>{{ 'Edit Resource' if edit_mode else 'Add Resource' }}</h1>
+    <h1 id="header">{{ 'Edit Resource' if edit_mode else 'Add Resource' }}</h1>
     <p>{{ 'Update resource details. Quantity changes are handled via Add/Deduct Stock so they are audited individually.' if edit_mode else 'Register a new consumable resource item in the inventory.' }}</p>
 </div>
 
@@ -102,7 +102,7 @@
 
         <div class="col-12 d-flex justify-content-end gap-2 pt-2">
             <a href="/admin/resources" class="btn btn-outline-secondary">Cancel</a>
-            <button type="submit" class="btn btn-rk">
+            <button type="submit" class="btn-rk">
                 <i class="bi bi-check2"></i> {{ 'Save Changes' if edit_mode else 'Create Resource' }}
             </button>
         </div>

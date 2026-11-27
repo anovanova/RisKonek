@@ -16,7 +16,7 @@
 {% block content %}
 <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
     <div>
-        <h1><i class="bi bi-bar-chart-steps me-2"></i>Compare Scenarios</h1>
+        <h1 id="header"><i class="bi bi-bar-chart-steps me-2"></i>Compare Scenarios</h1>
         <p>Side-by-side comparison of two saved snapshots. Figures reflect the
            data and thresholds at the time each was run — nothing is recomputed.</p>
     </div>
@@ -47,7 +47,7 @@
     {% for s in [a, b] %}
     {% set band = band_ui.get(s.readiness, band_ui['Critical']) %}
     <div class="col-md-6">
-        <div class="dash-card h-100">
+        <div class="dash-card overflow-hidden h-100">
             <div class="card-title-row">
                 <h6 class="mb-0">
                     <span class="badge bg-secondary me-1">{{ 'A' if loop.first else 'B' }}</span>
@@ -71,7 +71,7 @@
 </div>
 
 {# ── Per-class comparison table ───────────────────────────────────────── #}
-<div class="dash-card">
+<div class="dash-card overflow-hidden">
     <div class="card-title-row">
         <h6 class="mb-0"><i class="bi bi-table me-1"></i>Resource Comparison</h6>
     </div>

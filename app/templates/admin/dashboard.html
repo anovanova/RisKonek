@@ -61,8 +61,7 @@
 <!-- Page header -->
 <div class="d-flex justify-content-between align-items-start page-header">
     <div>
-        <h1>Analytics Overview Dashboard</h1>
-        <p>City-wide disaster preparedness, readiness scores, and resource adequacy status</p>
+        <h1 id="header">Analytics Overview Dashboard</h1>
     </div>
     <div class="last-updated">
         Last updated<br>
@@ -70,50 +69,17 @@
     </div>
 </div>
 
-<!-- Alert banner — only shows if there are active alerts -->
-{% if active_alerts > 0 %}
-<div class="alert-banner">
-    <i class="bi bi-exclamation-triangle-fill rk-fs-16"></i>
-    <span>
-        <strong>{{ active_alerts }} active alert{{ 's' if active_alerts > 1 else '' }}:</strong>
-        {{ low_stock_count }} item{{ 's' if low_stock_count != 1 else '' }} below restock threshold,
-        {{ expiring_count }} item{{ 's' if expiring_count != 1 else '' }} expiring within 30 days.
-        <a href="/admin/resources" class="fw-medium text-decoration-none rk-text-note">
-            View Resources <i class="bi bi-arrow-right"></i>
-        </a>
-    </span>
-</div>
-{% endif %}
-
 <!-- ── STAT CARDS ─────────────────────────────────────────────── -->
 <div class="row g-3 mb-4">
 
     <div class="col-md-3">
         <div class="stat-card">
             <div class="d-flex justify-content-between align-items-start">
-                <div class="stat-label">Overall System Status</div>
-                <div class="stat-icon rk-tint-green">
-                    <i class="bi bi-shield-check"></i>
-                </div>
+                <div class="stat-label">Total Barangays</div>
             </div>
-            <div class="stat-value rk-text-ok">Operational</div>
-            <div class="stat-change text-success">
-                {{ total_barangays }} barangays monitored
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-3">
-        <div class="stat-card">
-            <div class="d-flex justify-content-between align-items-start">
-                <div class="stat-label">Overall Readiness Score</div>
-                <div class="stat-icon rk-tint-blue">
-                    <i class="bi bi-graph-up-arrow"></i>
-                </div>
-            </div>
-            <div class="stat-value">{{ readiness_score }}%</div>
+            <div class="stat-value rk-text-ok">{{ total_barangays }}</div>
             <div class="stat-change text-muted">
-                {{ serviceable_count }}/{{ total_equip }} equipment serviceable
+                City of San Pedro
             </div>
         </div>
     </div>
@@ -121,14 +87,11 @@
     <div class="col-md-3">
         <div class="stat-card">
             <div class="d-flex justify-content-between align-items-start">
-                <div class="stat-label">Data Relevance Score</div>
-                <div class="stat-icon rk-tint-purple">
-                    <i class="bi bi-database-check"></i>
-                </div>
+                <div class="stat-label">Submitted BDRRM Plan</div>
             </div>
-            <div class="stat-value">{{ data_relevance }}%</div>
+            <div class="stat-value">{{ barangays_with_planning }}</div>
             <div class="stat-change text-muted">
-                Barangays updated within 6 months
+                Barangays
             </div>
         </div>
     </div>
@@ -136,17 +99,47 @@
     <div class="col-md-3">
         <div class="stat-card">
             <div class="d-flex justify-content-between align-items-start">
-                <div class="stat-label">Active Alerts Count</div>
-                <div class="stat-icon rk-tint-red">
-                    <i class="bi bi-bell-fill"></i>
-                </div>
+                <div class="stat-label">Reviewed BDDRM Plan</div>
+            </div>
+            <div class="stat-value">{{ reviewed_plans }}</div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="stat-label">Pending AR Review</div>
             </div>
             <div class="stat-value {{ 'rk-text-crit' if active_alerts > 0 else 'rk-text-ok' }}">
-                {{ active_alerts }}
+                {{ pending_activities }}
             </div>
             <div class="stat-change text-muted">
-                Resource and expiry alerts
+                {{reviewed_activities}} of {{ activities}} reviewed
             </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="row g-3 mb-4">
+
+    <div class="col-md-6">
+        <div class="dash-card">
+            <div class="card-title-row">
+                <i class="bi bi-pie-chart-fill rk-text-info"></i>
+                <h6>Barangays with submitted BDRRM Plans</h6>
+            </div>
+            <canvas id="plansChart" height="180"></canvas>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="dash-card">
+            <div class="card-title-row">
+                <i class="bi bi-pie-chart-fill rk-text-green"></i>
+                <h6>Accomplishment Report Review</h6>
+            </div>
+            <canvas id="accomplishmentsChart" height="180"></canvas>
         </div>
     </div>
 
@@ -155,7 +148,7 @@
 <!-- ── ROW 2: Insights feed + Mini map ────────────────────────── -->
 <div class="row g-3 mb-4">
 
-    <div class="col-md-7">
+    <div class="col-md-12">
         <div class="dash-card">
             <div class="card-title-row">
                 <i class="bi bi-bell text-warning"></i>
@@ -192,248 +185,52 @@
         </div>
     </div>
 
-    <div class="col-md-5">
-        <div class="dash-card">
-            <div class="card-title-row">
-                <i class="bi bi-map-fill rk-text-green"></i>
-                <h6>Barangay-Level Hazard and Priority Map</h6>
-                <a href="/admin/map" class="ms-auto rk-fs-12 rk-text-green text-decoration-none">
-                    View Full Map <i class="bi bi-arrow-right"></i>
-                </a>
-            </div>
-            <div id="dashMap"></div>
-            <div class="d-flex gap-3 mt-2 flex-wrap rk-fs-11">
-                <span><i class="bi bi-circle-fill rk-text-crit"></i> Critical</span>
-                <span><i class="bi bi-circle-fill rk-text-high"></i> High</span>
-                <span><i class="bi bi-circle-fill rk-text-mod"></i> Moderate</span>
-                <span><i class="bi bi-circle-fill rk-text-ok"></i> Low</span>
-            </div>
-        </div>
-    </div>
-
-</div>
-
-<!-- ── ROW 3: Charts ──────────────────────────────────────────── -->
-<div class="row g-3 mb-4">
-
-    <div class="col-md-6">
-        <div class="dash-card">
-            <div class="card-title-row">
-                <i class="bi bi-bar-chart-fill rk-text-info"></i>
-                <h6>Disaster Incidents by Type</h6>
-            </div>
-            <canvas id="disasterChart" height="180"></canvas>
-        </div>
-    </div>
-
-    <div class="col-md-6">
-        <div class="dash-card">
-            <div class="card-title-row">
-                <i class="bi bi-graph-up rk-text-green"></i>
-                <h6>Incidents Trend (Last 6 Years)</h6>
-            </div>
-            <canvas id="trendChart" height="180"></canvas>
-        </div>
-    </div>
-
-</div>
-
-<!-- ── ROW 4: Top 5 + Preparedness table ─────────────────────── -->
-<div class="row g-3 mb-4">
-
-    <div class="col-md-6">
-        <div class="dash-card">
-            <div class="card-title-row">
-                <i class="bi bi-exclamation-triangle-fill text-danger"></i>
-                <h6>Priority Barangays (Frequently Affected)</h6>
-            </div>
-
-            <div class="text-muted mb-2 rk-fs-11">
-                <i class="bi bi-info-circle"></i>
-                This score is system-generated for planning support only and is
-                not an official hazard or risk classification.
-            </div>
-
-            {% for brgy in top5 %}
-            <div class="brgy-item">
-                <div class="d-flex align-items-center gap-2 mb-1">
-                    <div class="brgy-rank">{{ loop.index }}</div>
-                    <div class="flex-grow-1">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div class="brgy-name">{{ brgy.name }}</div>
-                            <span class="risk-badge risk-{{ brgy.level }}">
-                                {{ brgy.level.title() }}
-                            </span>
-                        </div>
-                        <div class="brgy-sub">
-                            Hazards: {{ brgy.hazard_types.replace(',', ', ').title() if brgy.hazard_types else '—' }}
-                            &nbsp;·&nbsp; Population: {{ "{:,}".format(brgy.population) }}
-                        </div>
-                    </div>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <div class="score-bar-track flex-grow-1">
-                        <div class="score-bar-fill rk-fill-{{ brgy.level }} rk-w-p{{ brgy.score | round | int }}"></div>
-                    </div>
-                    <span class="rk-fs-12 text-muted rk-nowrap">
-                        Score: {{ brgy.score }}
-                    </span>
-                </div>
-                <a href="/admin/barangays/{{ brgy.id }}"
-                   class="rk-fs-12 rk-text-green text-decoration-none">
-                    View Barangay Profile <i class="bi bi-arrow-right"></i>
-                </a>
-            </div>
-            {% endfor %}
-
-        </div>
-    </div>
-
-    <div class="col-md-6">
-        <div class="dash-card">
-            <div class="card-title-row">
-                <i class="bi bi-shield-fill-check rk-text-green"></i>
-                <h6>Preparedness Index Overview</h6>
-            </div>
-
-            <table class="table prep-table">
-                <thead>
-                    <tr>
-                        <th>Barangay</th>
-                        <th>Score</th>
-                        <th>Planning Priority</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for brgy in all_scores[:10] %}
-                    <tr>
-                        <td>{{ brgy.name }}</td>
-                        <td class="fw-medium">{{ brgy.score }}</td>
-                        <td>
-                            <span class="risk-badge risk-{{ brgy.level }}">
-                                {{ brgy.level.title() }}
-                            </span>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-
-            <a href="/admin/barangays"
-               class="btn-soft w-100 justify-content-center mt-2 rk-text-green">
-                View All Barangays <i class="bi bi-arrow-right"></i>
-            </a>
-        </div>
-    </div>
-
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"
         integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script nonce="{{ request.state.csp_nonce }}">
 // ── Current date/time ─────────────────────────────────────────────
-function updateDateTime() {
-    const now = new Date();
-    document.getElementById('currentDateTime').textContent =
-        now.toLocaleDateString('en-PH', {
-            year: 'numeric', month: 'long', day: 'numeric'
-        }) + ' · ' + now.toLocaleTimeString('en-PH', {
-            hour: '2-digit', minute: '2-digit'
-        });
-}
-updateDateTime();
-
-// ── Disaster type chart ───────────────────────────────────────────
-const disasterData = {{ disaster_counts | safe }};
-new Chart(document.getElementById('disasterChart'), {
-    type: 'bar',
+const plansData = {{ plans_data_chart | safe }}
+new Chart(document.getElementById('plansChart'), {
+    type: 'pie',
     data: {
-        labels: Object.keys(disasterData).map(k => k.charAt(0).toUpperCase() + k.slice(1)),
+        labels: Object.keys(plansData).map(k => k.charAt(0).toUpperCase() + k.slice(1)),
         datasets: [{
-            label: 'Incidents',
-            data: Object.values(disasterData),
+            label: 'Count',
+            data: Object.values(plansData),
             backgroundColor: [
-                '#3498db','#e74c3c','#f39c12','#8e44ad','#1abc9c','#e67e22'
+                '#3498db','#e74c3c','#f39c12'
             ],
-            borderRadius: 6,
         }]
     },
     options: {
         responsive: true,
         plugins: { legend: { display: false } },
-        scales: {
-            y: { beginAtZero: true, grid: { color: '#f5f5f5' } },
-            x: { grid: { display: false } }
-        }
     }
 });
 
 // ── Trend line chart ─────────────────────────────────────────────
-const yearlyData = {{ yearly_data | safe }};
-new Chart(document.getElementById('trendChart'), {
-    type: 'line',
+const accomplishmentsData = {{ accomplishments_data_chart | safe }}
+new Chart(document.getElementById('accomplishmentsChart'), {
+    type: 'pie',
     data: {
-        labels: Object.keys(yearlyData),
+        labels:Object.keys(accomplishmentsData).map(k => k.charAt(0).toUpperCase() + k.slice(1)),
         datasets: [{
-            label: 'Total Incidents',
-            data: Object.values(yearlyData),
-            borderColor: '#047857',
-            backgroundColor: 'rgba(26,107,71,0.08)',
-            borderWidth: 2,
-            pointBackgroundColor: '#047857',
-            pointRadius: 4,
-            fill: true,
-            tension: 0.4,
+            label: 'Activities',
+            data: Object.values(accomplishmentsData),
+            backgroundColor: [
+                '#3498db','#e74c3c','#f39c12'
+            ],
         }]
     },
     options: {
         responsive: true,
         plugins: { legend: { display: false } },
-        scales: {
-            y: { beginAtZero: true, grid: { color: '#f5f5f5' } },
-            x: { grid: { display: false } }
-        }
     }
 });
 
-// ── Leaflet map ───────────────────────────────────────────────────
-const map = L.map('dashMap').setView([14.356, 121.052], 13);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors',
-    maxZoom: 17
-}).addTo(map);
-
-const markerColors = {
-    critical: '#c0392b',
-    high:     '#d35400',
-    moderate: '#f39c12',
-    low:      '#047857'
-};
-
-const markers = {{ map_markers | safe }};
-markers.forEach(m => {
-    const color = markerColors[m.level] || '#888';
-    // circleMarker renders as SVG (fill/stroke via attributes, no inline
-    // style attribute) so it stays valid under a strict CSP style-src.
-    L.circleMarker([m.lat, m.lng], {
-        radius: 6,
-        color: '#fff',
-        weight: 2,
-        fillColor: color,
-        fillOpacity: 1
-    })
-        .addTo(map)
-        .bindPopup(`
-            <strong>${m.name}</strong><br>
-            Planning Priority Score: ${m.score}<br>
-            Priority: <span class="rk-lvl-${m.level} fw-semibold">${m.level.charAt(0).toUpperCase() + m.level.slice(1)}</span><br>
-            <span class="rk-fs-10 rk-text-faint">System-generated for planning support only; not an official hazard or risk classification.</span>
-        `);
-});
 </script>
 {% endblock %}

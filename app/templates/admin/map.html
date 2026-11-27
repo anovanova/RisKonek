@@ -14,10 +14,10 @@
 {% block content %}
 <div class="page-header d-flex justify-content-between align-items-end flex-wrap gap-2">
     <div>
-        <h1><i class="bi bi-map-fill me-2"></i>Critical Facilities Map</h1>
+        <h1 id="header"><i class="bi bi-map-fill me-2"></i>Critical Facilities Map</h1>
         <p>Critical facilities of San Pedro, Laguna — sourced from the CDRRMO master list.</p>
     </div>
-    <button type="button" class="btn btn-rk" data-bs-toggle="modal" data-bs-target="#facilityModal" id="addFacilityBtn">
+    <button type="button" class="btn-rk" data-bs-toggle="modal" data-bs-target="#facilityModal" id="addFacilityBtn">
         <i class="bi bi-plus-lg"></i> <span class="d-none d-sm-inline">Add Facility</span>
     </button>
 </div>
@@ -224,7 +224,7 @@
                         <div class="text-muted rk-fs-11" id="pickerCoordinates"></div>
                     </div>
                 </div>
-                <button type="button" class="btn btn-rk btn-sm" id="pickerConfirm" disabled>Use this location</button>
+                <button type="button" class="btn-rk btn-sm" id="pickerConfirm" disabled>Use this location</button>
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="pickerCancel">Cancel</button>
             </div>
         </div>

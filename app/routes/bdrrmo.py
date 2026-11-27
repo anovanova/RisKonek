@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
 from datetime import datetime, date, timezone, timedelta
 from urllib.parse import quote_plus
@@ -59,6 +59,7 @@ from app.services.facility_details import (
     EO_MOA_MOU_STATUSES,
 )
 from app.storage import upload_file, download_file
+from pathlib import Path
 
 router = APIRouter(prefix="/bdrrmo")
 templates = Jinja2Templates(directory="app/templates")
@@ -180,12 +181,40 @@ def profile(request: Request, db: Session = Depends(get_db)):
             context={"user": user, "active_nav": "bdrrmo_profile", "barangay": None},
         )
 
-    upcoming_activities = get_upcoming_activities(db)
+    barangay_id = user["barangay_id"]
+    
+
+    stmt = select(Planning).order_by(Planning.created_at.desc()).where(Planning.barangay_id == barangay_id,).limit(1)
+    latest_plan = db.scalars(stmt).first()
+
+    upcoming_activities = get_upcoming_activities(db, barangay_id)
+
+    upcoming_activities_number = len(upcoming_activities)
+
+    if latest_plan:
+        submitted_count, not_submitted_count, total = get_submitted_activities(db, latest_plan.id)
+        status = PLANNING_STATUS_LABELS.get(latest_plan.status.value, "-")
+        activities_chart = get_activity_status_summary(db, latest_plan.id)
+        accomplishments_chart = get_activity_accomplishment_summary(db, latest_plan.id)
+    else:
+        submitted_count = not_submitted_count = total = 0
+        status = "No plan uploaded yet"
+        activities_chart = {"pending": 0, "approved": 0, "rejected": 0}
+        accomplishments_chart = {"True": 0, "False": 0}
+    
 
     context = barangay_profile_context(db, barangay)
     context["user"] = user
     context["active_nav"] = "bdrrmo_profile"
     context["upcoming_activities"] = upcoming_activities
+    context["upcoming_activities_number"] = upcoming_activities_number
+    context["plan_status"] = status
+    context["activities_total"] = total
+    context["activities_submitted"] = submitted_count
+    context["activities_not_submitted"] = not_submitted_count
+    context["activities_data_chart"] = activities_chart
+    context["accomplishments_data_chart"] = accomplishments_chart
+
     return templates.TemplateResponse(
         request=request, name="bdrrmo/profile.html", context=context
     )
@@ -2355,7 +2384,7 @@ def contact_directory(
     page: Optional[str] = None,
     per_page: Optional[str] = None,
 ):
-    user = require_role(request, ["bdrrmo"])
+    user, barangay = _resolve_scope(request, db)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -2364,6 +2393,7 @@ def contact_directory(
         directory_url="/bdrrmo/directory", active_nav="bdrrmo_directory",
     )
     context["user"] = user
+    context["barangay"] = barangay
     return templates.TemplateResponse(
         request=request, name="shared/contact_directory.html", context=context,
     )
@@ -2476,7 +2506,7 @@ def resources_list(
     page: Optional[str] = None,
     per_page: Optional[str] = None,
 ):
-    user, _ = _resolve_scope(request, db)
+    user, barangay = _resolve_scope(request, db)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -2542,6 +2572,7 @@ def resources_list(
             "page_obj": page_obj,
             "base_query": base_query,
             "summary": summary,
+            "barangay": barangay,
             "categories": [c.value for c in ResourceCategory],
             "food_types": [(v, FOOD_TYPE_LABELS[v]) for v in FOOD_TYPE_CHOICES],
             "f_q": q or "",
@@ -2967,7 +2998,7 @@ def equipment_list(
     page: Optional[str] = None,
     per_page: Optional[str] = None,
 ):
-    user, _ = _resolve_scope(request, db)
+    user, barangay = _resolve_scope(request, db)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -3046,6 +3077,7 @@ def equipment_list(
             "page_obj": page_obj,
             "base_query": base_query,
             "summary": summary,
+            "barangay": barangay,
             "types": [(t.value, EQUIPMENT_TYPE_LABELS.get(t.value, t.value.title()))
                       for t in EquipmentType],
             "statuses": [(s.value, EQUIPMENT_STATUS_LABELS.get(s.value, s.value.title()))
@@ -3063,7 +3095,7 @@ def equipment_list(
 
 @router.get("/equipment_bdrrmo/new", response_class=HTMLResponse)
 def equipment_new_form(request: Request, db: Session = Depends(get_db)):
-    user, _ = _resolve_scope(request, db)
+    user, barangay = _resolve_scope(request, db)
     if isinstance(user, RedirectResponse):
         return user
     return templates.TemplateResponse(
@@ -3074,6 +3106,7 @@ def equipment_new_form(request: Request, db: Session = Depends(get_db)):
             "active_nav": "equipment",
             "edit_mode": False,
             "target": None,
+            "barangay": barangay,
             "types": [(t.value, EQUIPMENT_TYPE_LABELS.get(t.value, t.value.title()))
                       for t in EquipmentType],
             "status_choices": [(v, EQUIPMENT_STATUS_LABELS[v]) for v in EQUIPMENT_STATUS_CHOICES],
@@ -3508,7 +3541,7 @@ async def planning_upload_submit(
         file_path=temp_path,
         filename=original_name,
         extracted=extracted,
-        activities=ai_json['activities']
+        activities=(ai_json or {}).get("activities") or []
     )
 
     return RedirectResponse(
@@ -3562,8 +3595,8 @@ def planning_archive_toggle(
 
     verb = "archived" if p.is_archived else "restored"
     log_action(
-        db, user["id"], verb, "equipment", p.id,
-        f"Equipment '{p.file_name}' {verb}.",
+        db, user["id"], verb, "Planning", p.id,
+        f"Planning '{p.file_name}' {verb}.",
     )
 
     url = "/bdrrmo/planning?archived=1&success=" + verb.title() if p.is_archived \
@@ -3618,9 +3651,9 @@ def planning_review(
     user, _ = _resolve_scope(request, db)
     if isinstance(user, RedirectResponse):
         return user
-    p = db.query(Planning).filter(Planning.id == planning_id).first()
+    p = _get_planning_owned_upload(db, planning_id, user)
     if not p:
-        return RedirectResponse(url="/admin/planning", status_code=302)
+        return RedirectResponse(url="/bdrrmo/planning", status_code=302)
 
     if(extract_retry):
     
@@ -3636,6 +3669,12 @@ def planning_review(
         
         p.summary = ai_json['summary']
         p.recommendation = ai_json['recommendation']
+
+    verb = "retry"
+    log_action(
+        db, user["id"], verb, "Planning", p.id,
+        f"Planning retry '{p.file_name}' {verb}.",
+    )
 
     db.commit()
 
@@ -3660,7 +3699,7 @@ def review_activities(
             status_code=302,
         )
     
-    draft = get_temporary_draft(draft_id)
+    draft = get_temporary_draft(draft_id, user_id=user["id"])
 
     if not draft:
         return RedirectResponse(
@@ -3676,7 +3715,8 @@ def review_activities(
             "active_nav": "planning",
             "draft_id": draft_id,
             "barangay": barangay,
-            "activities": draft["activities"]
+            "activities": draft["activities"],
+            "extraction_error": (draft.get("extracted") or {}).get("error")
         },
     )
 
@@ -3711,7 +3751,7 @@ async def save_confirmed_activities(
             status_code=302,
         )
     
-    draft = get_temporary_draft(draft_id)
+    draft = get_temporary_draft(draft_id, user_id=user["id"])
 
     if not draft:
         return RedirectResponse(
@@ -3790,6 +3830,17 @@ async def save_confirmed_activities(
         # Commit document and activities together
         db.commit()
 
+        verb = "saved"
+        log_action(
+            db, user["id"], verb, "Planning", activity.id,
+            f"Planning '{activity.title}' {verb}.",
+        )
+
+        log_action(
+            db, user["id"], verb, "Activities", activity.id,
+            f"Activities for '{activity.title}' {verb}.",
+        )
+
         # Remove temporary draft metadata
         delete_temporary_draft(draft_id)
 
@@ -3807,7 +3858,7 @@ async def save_confirmed_activities(
 
 @router.get("/planning/activities/{plan_id}")
 def get_activities(
-    plan_id: str,
+    plan_id: int,
     request: Request,
     db: Session = Depends(get_db),
 ):
@@ -3850,9 +3901,9 @@ def get_activities(
     )
 
 @router.post("/activities/{activity_id}/submit")
-async def planning_upload_submit(
+async def activity_proof_submit(
     request: Request,
-    activity_id: str,
+    activity_id: int,
     db: Session = Depends(get_db),
     file: UploadFile = File(...),
 ):
@@ -3873,7 +3924,15 @@ async def planning_upload_submit(
             status_code=302,
         )
 
-    a = db.query(Activity).filter(Activity.id == activity_id).first()
+    a = (
+    db.query(Activity)
+    .join(Planning, Activity.planning_id == Planning.id)
+    .filter(Activity.id == activity_id, Planning.barangay_id == barangay.id)
+    .first()
+    )
+    if not a:
+        return RedirectResponse(url="/bdrrmo/planning?error=Activity+not+found", status_code=302)
+    
     p = db.query(Planning).filter(Planning.id == a.planning_id).first()
 
     if p.status != "approved":
@@ -3896,11 +3955,96 @@ async def planning_upload_submit(
             file_name=file.filename,
             file_path=file_key,
             activity_id=activity_id,
+            uploaded_by=user["id"],
         )
 
         db.add(activity_proof)
 
         a.is_proof_submitted = True
+
+        verb = "submitted"
+        log_action(
+            db, user["id"], verb, "ActivityProof", a.id,
+            f"Activity Proof for '{a.title}' {verb}.",
+        )
+
+        db.commit()
+
+        return RedirectResponse(
+            url=f"/bdrrmo/planning", status_code=302
+        )
+    
+    except Exception as e:
+        print(e)
+        db.rollback()
+
+        return RedirectResponse(
+            url=f"/bdrrmo/planning?error=File+not+saved,+try+again", status_code=302
+        )
+
+@router.post("/activities/{activity_id}/retry")
+async def activity_proof_retry(
+    request: Request,
+    activity_id: int,
+    db: Session = Depends(get_db),
+    file: UploadFile = File(...),
+):
+    user, barangay = _resolve_scope(request, db)
+    if isinstance(user, RedirectResponse):
+        return user
+    if not barangay:
+        return RedirectResponse(
+            url="/bdrrmo/planning?error=No+barangay+is+assigned+to+your+account",
+            status_code=302,
+        )
+
+    original_name = file.filename
+    ext = _ext_of(original_name)
+    if ext != ".pdf":
+        return RedirectResponse(
+            url="/bdrrmo/planning?error=Unsupported+file+type.+Allowed:+PDF",
+            status_code=302,
+        )
+
+    a = (
+    db.query(Activity)
+    .join(Planning, Activity.planning_id == Planning.id)
+    .filter(Activity.id == activity_id, Planning.barangay_id == barangay.id)
+    .first()
+    )
+    if not a:
+        return RedirectResponse(url="/bdrrmo/planning?error=Activity+not+found", status_code=302)
+    
+    p = db.query(Planning).filter(Planning.id == a.planning_id).first()
+
+    if p.status != "approved":
+        return RedirectResponse(
+            url="/bdrrmo/planning?error=Plan+not+approved+yet",
+            status_code=302,
+        )
+        
+
+    try:
+        stored_name = _safe_filename(file.filename)
+
+        file_key = upload_file(
+            file,
+            filename=stored_name,
+            folder="documents"
+        )
+
+        activity_proof = db.query(ActivityProof).filter(ActivityProof.activity_id == activity_id).first()
+
+        activity_proof.file_name = file.filename
+        activity_proof.file_path = file_key
+        a.status = "pending"
+        a.is_proof_submitted = True
+
+        verb = "retry"
+        log_action(
+            db, user["id"], verb, "ActivityProof", a.id,
+            f"Activity Proof Retry for '{a.title}' {verb}.",
+        )
 
         db.commit()
 
@@ -3949,6 +4093,7 @@ def planning_ai_activities_extraction(stored_path, file_name):
     except Exception as e:
         print(f"Extraction failed for plan '{file_name}': {e}")
         extracted["error"] = "Extraction failed. The file could not be read or was malformed."
+        return {"activities": []}, extracted
 
 
     # Optional AI summary — never blocks the flow.
@@ -3958,11 +4103,20 @@ def planning_ai_activities_extraction(stored_path, file_name):
 
         match = re.search(pattern, extracted.get("raw_text"), flags=re.DOTALL)
 
-        section_text = match.group(1).strip()
+        section_text = find_ppa_section(extracted["raw_text"])
+
+        if not section_text:
+            extracted["error"] = ("Section VI (Programs, Projects and Activities) was not found. "
+                                    "Please encode the activities manually.")
+            return {"activities": []}, extracted
 
         column_text = extract_column_text(section_text, column_index=1)
 
         activities = extract_activities(column_text)
+
+        if not activities:
+            extracted["error"] = ("AI extraction is unavailable right now. Please encode the activities manually.")
+            return {"activities": []}, extracted
 
         ai_json = activities
 
@@ -4089,6 +4243,9 @@ def extract_column_text(text, column_index=1):
         # Ignore repeated headers
         if columns == headers:
             continue
+
+        if len(columns) <= column_index:
+            continue
         
         value = columns[column_index]
 
@@ -4097,7 +4254,7 @@ def extract_column_text(text, column_index=1):
 
     return "\n".join(results)
 
-def get_upcoming_activities(db):
+def get_upcoming_activities(db, barangay_id):
     today = date.today()
     reminder_date = today + timedelta(days=7)
 
@@ -4109,11 +4266,76 @@ def get_upcoming_activities(db):
             Activity.start_date >= today,
             Activity.start_date <= reminder_date,
             Planning.status == "approved",
+            Planning.barangay_id == barangay_id,
         )
         .order_by(Activity.start_date.asc())
     )
 
     return db.scalars(query).all()
+
+def get_submitted_activities(db, planning_id):
+
+    query = (
+        select(Activity)
+        .where(
+            Activity.planning_id == planning_id,
+        )
+    )
+
+    data = db.scalars(query).all()
+
+    submitted_count = 0
+    not_submitted_count = 0
+    total = len(data)
+
+    for item in data:
+        if item.is_proof_submitted == True:
+            submitted_count += 1
+        else:
+            not_submitted_count += 1
+
+    return submitted_count, not_submitted_count, total
+
+def get_activity_status_summary(db, planning_id=None):
+    stmt = (
+        select(
+            Activity.status,
+            func.count(Activity.id).label("total")
+        )
+        .group_by(Activity.status)
+    )
+
+    if planning_id:
+        stmt = stmt.where(Activity.planning_id == planning_id)
+
+    results = db.execute(stmt).all()
+
+    return {
+        "pending": 0,
+        "approved": 0,
+        "rejected": 0,
+        **{status: total for status, total in results}
+    }
+
+def get_activity_accomplishment_summary(db, planning_id=None):
+    stmt = (
+        select(
+            Activity.is_proof_submitted,
+            func.count(Activity.id).label("total")
+        )
+        .group_by(Activity.is_proof_submitted)
+    )
+
+    if planning_id:
+        stmt = stmt.where(Activity.planning_id == planning_id)
+
+    results = db.execute(stmt).all()
+
+    return {
+        "True": 0,
+        "False": 0,
+        **{is_proof_submitted: total for is_proof_submitted, total in results}
+    }
 
 def cleanup_expired_drafts(hours: int = 24):
 
@@ -4122,7 +4344,9 @@ def cleanup_expired_drafts(hours: int = 24):
     now = datetime.now(timezone.utc)
     expiration = timedelta(hours=hours)
 
-    for draft_path in TEMP_DIR.glob("*.json"):
+    TEMP_PATH = Path("uploads") / "temp"
+
+    for draft_path in TEMP_PATH.glob("*.json"):
 
         try:
             draft = json.loads(
@@ -4141,3 +4365,16 @@ def cleanup_expired_drafts(hours: int = 24):
 
         except (KeyError, ValueError, OSError, json.JSONDecodeError):
             continue
+
+SECTION_VI = re.compile(
+ r"\bVI\b\.?\s*Programs?\s*,?\s*Projects?\s*(?:and|&)\s*Activities", re.I)
+SECTION_VII = re.compile(r"\bVII\b\.?\s*MONITORING", re.I)
+
+def find_ppa_section(raw_text):
+ """Section VI text, skipping a table of contents (first match that has a table)."""
+ for m in SECTION_VI.finditer(raw_text):
+    end = SECTION_VII.search(raw_text, m.end())
+    section = raw_text[m.end(): end.start() if end else len(raw_text)]
+    if "--- PAGE TABLES ---" in section:
+        return section
+ return None

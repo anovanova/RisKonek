@@ -6,7 +6,7 @@
 
 {% block content %}
 <div class="page-header">
-    <h1>Upload Report</h1>
+    <h1 id="header">Upload Report</h1>
     <p>Accepted formats: PDF, XLSX, XLS, CSV. The raw file is stored unchanged; extracted data must be reviewed before saving.</p>
 </div>
 
@@ -44,7 +44,7 @@
         {% endif %}
 
         <div class="d-flex gap-2">
-            <button type="submit" class="btn btn-rk">
+            <button type="submit" class="btn-rk">
                 <i class="bi bi-cloud-upload"></i> Upload &amp; Extract
             </button>
             <a href="/admin/uploads" class="btn btn-outline-secondary">Cancel</a>

@@ -4,10 +4,16 @@
 
 {% set active_nav = 'bdrrmo_incidents' %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+    #header { margin: 0; color: #167736; font-size: 40px;}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-start page-header">
     <div>
-        <h1>Review Uploaded Incident</h1>
+        <h1 id="header">Review Uploaded Incident</h1>
         <p>Preview from <strong>{{ report.file_name }}</strong>. Use the extracted content
            below as reference, then verify the core incident details and save. The incident
            is recorded against
@@ -223,7 +229,7 @@
 
         <div class="col-12 d-flex justify-content-end gap-2 pt-2">
             <a href="/bdrrmo/incidents" class="btn btn-outline-secondary">Cancel</a>
-            <button type="submit" class="btn btn-rk">
+            <button type="submit" class="btn-rk">
                 <i class="bi bi-save"></i>
                 {% if matched_incident %}Reuse Existing Incident{% else %}Create Incident{% endif %}
             </button>

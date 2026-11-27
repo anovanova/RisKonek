@@ -5,6 +5,12 @@
 
 {% set active_nav = 'bdrrmo_incident_reports' %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+    #header { margin: 0; color: #167736; font-size: 40px;}
+</style>
+{% endblock %}
+
 {% macro workflow_pill(v, label) -%}
     {% if v == 'submitted' %}
         <span class="status-pill status-operational">{{ label }}</span>
@@ -16,13 +22,13 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-start page-header">
     <div>
-        <h1>Post-Incident Reports</h1>
+        <h1 id="header">Post-Incident Reports</h1>
         <p>Your operational reports filed after disaster response activities in
            {% if barangay %}Barangay {{ barangay.name }}{% else %}your barangay{% endif %}.</p>
     </div>
     {% if barangay %}
     <div class="dropdown">
-        <button class="btn btn-rk dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <button class="btn-rk dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-plus-lg"></i> New Report
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
@@ -80,7 +86,7 @@
 </div>
 
 <!-- ── Table ──────────────────────────────────────────────────── -->
-<div class="dash-card p-0">
+<div class="dash-card overflow-hidden p-0">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="rk-bg-soft">
@@ -112,7 +118,7 @@
                         <form method="POST" action="/bdrrmo/incident-reports/{{ r.id }}/submit" class="d-inline"
                               data-confirm='Submit this report? You will no longer be able to edit it.'>
                             <input type="hidden" name="csrf_token" value="{{ request.session.get('csrf_token', '') }}">
-                            <button type="submit" class="btn btn-rk btn-sm"><i class="bi bi-send"></i> Submit</button>
+                            <button type="submit" class="btn-rk btn-sm"><i class="bi bi-send"></i> Submit</button>
                         </form>
                         {% endif %}
                     </td>

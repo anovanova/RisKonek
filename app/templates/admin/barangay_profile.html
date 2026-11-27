@@ -58,7 +58,7 @@
         </a>
         <div>
             <div class="profile-header">
-                <h1>{{ barangay.name }}</h1>
+                <h1 id="header">{{ barangay.name }}</h1>
                 <span class="risk-badge risk-{{ risk_level }}">
                     {{ risk_level.title() }} Planning Priority
                 </span>
@@ -160,7 +160,7 @@
 
     <!-- ── Key Infrastructure ─────────────────────────────────── -->
     <div class="tab-pane fade show active" id="tab-infra">
-        <div class="dash-card">
+        <div class="dash-card overflow-hidden">
             <div class="card-title-row">
                 <i class="bi bi-building rk-text-green"></i>
                 <h6>Key Infrastructure Facilities</h6>

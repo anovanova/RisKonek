@@ -20,7 +20,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-start page-header">
     <div>
-        <h1>Incident Data Uploads</h1>
+        <h1 id="header">Incident Data Uploads</h1>
         <p>Upload and convert disaster reports into incident records.</p>
     </div>
     <a href="/admin/uploads/new" class="btn btn-rk">
@@ -53,7 +53,7 @@
 
 <!-- ── DRAFTS ─────────────────────────────────────────────────────── -->
 {% if drafts %}
-<div class="dash-card p-0 mb-4">
+<div class="dash-card overflow-hidden p-0 mb-4">
     <div class="px-3 pt-3 pb-2 d-flex align-items-center gap-2">
         <i class="bi bi-pencil-square text-warning"></i>
         <h6 class="mb-0">Drafts &mdash; awaiting review</h6>
@@ -109,7 +109,7 @@
 {% endif %}
 
 <!-- ── CONFIRMED (ACTIVE) ─────────────────────────────────────────── -->
-<div class="dash-card p-0">
+<div class="dash-card overflow-hidden p-0">
     <div class="px-3 pt-3 pb-2 d-flex align-items-center justify-content-between">
         <div class="d-flex align-items-center gap-2">
             <i class="bi bi-collection"></i>

@@ -22,11 +22,11 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-start page-header">
     <div>
-        <h1>Audit Trail</h1>
+        <h1 id="header">Audit Trail</h1>
         <p>System-wide record of all logged actions. {{ total }} matching entr{{ 'y' if total == 1 else 'ies' }}.</p>
     </div>
     <div class="dropdown">
-        <button class="btn btn-rk dropdown-toggle" type="button"
+        <button class="btn-rk dropdown-toggle" type="button"
                 data-bs-toggle="dropdown" aria-expanded="false"
                 {% if total == 0 %}disabled title="No entries to export"{% endif %}>
             <i class="bi bi-download"></i> Export Logs

@@ -5,9 +5,15 @@
 
 {% set active_nav = 'bdrrmo_population' %}
 
+{% block head_extra %}
+<style nonce="{{ request.state.csp_nonce }}">
+    #header { margin: 0; color: #167736; font-size: 40px;}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
-    <h1>Population Records</h1>
+    <h1 id="header">Population Records</h1>
     <p>Log and review population data for
        {% if barangay %}Barangay {{ barangay.name }}{% else %}your barangay{% endif %}.
        Each submission is saved as a new dated record — history is never overwritten.</p>
@@ -100,7 +106,7 @@
             <input type="number" name="children_count" min="0" value="{{ latest.children_count if latest else '' }}" class="form-control form-control-sm" required>
         </div>
         <div class="col-12">
-            <button type="submit" class="btn btn-rk btn-sm">
+            <button type="submit" class="btn-rk btn-sm">
                 <i class="bi bi-save"></i> Save Population Record
             </button>
             <span class="text-muted small ms-2">
@@ -112,7 +118,7 @@
 </div>
 
 <!-- ── History ────────────────────────────────────────────────── -->
-<div class="dash-card p-0">
+<div class="dash-card overflow-hidden p-0">
     <div class="p-3 border-bottom"><h6 class="mb-0">Population History</h6></div>
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
