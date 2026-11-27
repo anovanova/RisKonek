@@ -4114,6 +4114,10 @@ def planning_ai_activities_extraction(stored_path, file_name):
 
         activities = extract_activities(column_text)
 
+        if not activities:
+            extracted["error"] = ("AI extraction is unavailable right now. Please encode the activities manually.")
+            return {"activities": []}, extracted
+
         ai_json = activities
 
     return ai_json, extracted
