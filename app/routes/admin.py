@@ -2847,14 +2847,21 @@ def planning_archive_toggle(
     if not p:
         return RedirectResponse(url="/admin/planning", status_code=302)
 
+    try:
+        new_status = PlanningStatus(status) # ActivityStatus(status) in the activity route
+    except ValueError:
+        return RedirectResponse(url="/admin/planning?error=Invalid+status", status_code=302)
+    if new_status == PlanningStatus.rejected and not reason.strip():
+        return RedirectResponse(url="/admin/planning?error=Please+give+a+reason", status_code=302)
+
     p.status = status
     p.reason = reason
 
-    if(status == "approved"):
-        ai_json = planning_ai_summary(p.extracted_data)
-        
-        p.summary = ai_json['summary']
-        p.recommendation = ai_json['recommendation']
+    if new_status == PlanningStatus.approved:
+        ai_json = planning_ai_summary(p.extracted_data or {})
+        if ai_json:
+            p.summary = ai_json.get("summary")
+            p.recommendation = ai_json.get("recommendation")
 
     verb = p.status
     log_action(
@@ -3029,7 +3036,7 @@ def planning_ai_summary(extracted_data):
     ai_json = None
     if extracted_data.get("raw_text"):
         text = extracted_data["raw_text"]
-        result = text.replace(" ", "")
+        result = re.sub(r"[ \t]+", " ", text)
         ai_json = ai_summarize(result)
 
     return ai_json

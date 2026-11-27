@@ -191,16 +191,16 @@ def profile(request: Request, db: Session = Depends(get_db)):
 
     upcoming_activities_number = len(upcoming_activities)
 
-    submitted_count, not_submitted_count, total = get_submitted_activities(db, latest_plan.id)
-
-    status = ''
-
-    if latest_plan.status == 'approved':
-        status = "Approved"
-    elif latest_plan.status == 'pending':
-        status = "Pending"
+    if latest_plan:
+        submitted_count, not_submitted_count, total = get_submitted_activities(db, latest_plan.id)
+        status = PLANNING_STATUS_LABELS.get(latest_plan.status.value, "-")
+        activities_chart = get_activity_status_summary(db, latest_plan.id)
+        accomplishments_chart = get_activity_accomplishment_summary(db, latest_plan.id)
     else:
-        status = "Rejected"
+        submitted_count = not_submitted_count = total = 0
+        status = "No plan uploaded yet"
+        activities_chart = {"pending": 0, "approved": 0, "rejected": 0}
+        accomplishments_chart = {"True": 0, "False": 0}
     
 
     context = barangay_profile_context(db, barangay)
@@ -212,8 +212,9 @@ def profile(request: Request, db: Session = Depends(get_db)):
     context["activities_total"] = total
     context["activities_submitted"] = submitted_count
     context["activities_not_submitted"] = not_submitted_count
-    context["activities_data_chart"] = get_activity_status_summary(db, latest_plan.id)
-    context["accomplishments_data_chart"] = get_activity_accomplishment_summary(db, latest_plan.id)
+    context["activities_data_chart"] = activities_chart
+    context["accomplishments_data_chart"] = accomplishments_chart
+
     return templates.TemplateResponse(
         request=request, name="bdrrmo/profile.html", context=context
     )
@@ -3540,7 +3541,7 @@ async def planning_upload_submit(
         file_path=temp_path,
         filename=original_name,
         extracted=extracted,
-        activities=ai_json['activities']
+        activities=(ai_json or {}).get("activities") or []
     )
 
     return RedirectResponse(
@@ -3650,9 +3651,9 @@ def planning_review(
     user, _ = _resolve_scope(request, db)
     if isinstance(user, RedirectResponse):
         return user
-    p = db.query(Planning).filter(Planning.id == planning_id).first()
+    p = _get_planning_owned_upload(db, planning_id, user)
     if not p:
-        return RedirectResponse(url="/admin/planning", status_code=302)
+        return RedirectResponse(url="/bdrrmo/planning", status_code=302)
 
     if(extract_retry):
     
@@ -3698,7 +3699,7 @@ def review_activities(
             status_code=302,
         )
     
-    draft = get_temporary_draft(draft_id)
+    draft = get_temporary_draft(draft_id, user_id=user["id"])
 
     if not draft:
         return RedirectResponse(
@@ -3714,7 +3715,8 @@ def review_activities(
             "active_nav": "planning",
             "draft_id": draft_id,
             "barangay": barangay,
-            "activities": draft["activities"]
+            "activities": draft["activities"],
+            "extraction_error": (draft.get("extracted") or {}).get("error")
         },
     )
 
@@ -3749,7 +3751,7 @@ async def save_confirmed_activities(
             status_code=302,
         )
     
-    draft = get_temporary_draft(draft_id)
+    draft = get_temporary_draft(draft_id, user_id=user["id"])
 
     if not draft:
         return RedirectResponse(
@@ -3922,7 +3924,15 @@ async def activity_proof_submit(
             status_code=302,
         )
 
-    a = db.query(Activity).filter(Activity.id == activity_id).first()
+    a = (
+    db.query(Activity)
+    .join(Planning, Activity.planning_id == Planning.id)
+    .filter(Activity.id == activity_id, Planning.barangay_id == barangay.id)
+    .first()
+    )
+    if not a:
+        return RedirectResponse(url="/bdrrmo/planning?error=Activity+not+found", status_code=302)
+    
     p = db.query(Planning).filter(Planning.id == a.planning_id).first()
 
     if p.status != "approved":
@@ -3996,7 +4006,15 @@ async def activity_proof_retry(
             status_code=302,
         )
 
-    a = db.query(Activity).filter(Activity.id == activity_id).first()
+    a = (
+    db.query(Activity)
+    .join(Planning, Activity.planning_id == Planning.id)
+    .filter(Activity.id == activity_id, Planning.barangay_id == barangay.id)
+    .first()
+    )
+    if not a:
+        return RedirectResponse(url="/bdrrmo/planning?error=Activity+not+found", status_code=302)
+    
     p = db.query(Planning).filter(Planning.id == a.planning_id).first()
 
     if p.status != "approved":
@@ -4075,6 +4093,7 @@ def planning_ai_activities_extraction(stored_path, file_name):
     except Exception as e:
         print(f"Extraction failed for plan '{file_name}': {e}")
         extracted["error"] = "Extraction failed. The file could not be read or was malformed."
+        return {"activities": []}, extracted
 
 
     # Optional AI summary — never blocks the flow.
@@ -4084,7 +4103,12 @@ def planning_ai_activities_extraction(stored_path, file_name):
 
         match = re.search(pattern, extracted.get("raw_text"), flags=re.DOTALL)
 
-        section_text = match.group(1).strip()
+        section_text = find_ppa_section(extracted["raw_text"])
+
+        if not section_text:
+            extracted["error"] = ("Section VI (Programs, Projects and Activities) was not found. "
+                                    "Please encode the activities manually.")
+            return {"activities": []}, extracted
 
         column_text = extract_column_text(section_text, column_index=1)
 
@@ -4215,6 +4239,9 @@ def extract_column_text(text, column_index=1):
         # Ignore repeated headers
         if columns == headers:
             continue
+
+        if len(columns) <= column_index:
+            continue
         
         value = columns[column_index]
 
@@ -4247,7 +4274,7 @@ def get_submitted_activities(db, planning_id):
     query = (
         select(Activity)
         .where(
-            Activity.planning_id >= planning_id,
+            Activity.planning_id == planning_id,
         )
     )
 
@@ -4334,3 +4361,16 @@ def cleanup_expired_drafts(hours: int = 24):
 
         except (KeyError, ValueError, OSError, json.JSONDecodeError):
             continue
+
+SECTION_VI = re.compile(
+ r"\bVI\b\.?\s*Programs?\s*,?\s*Projects?\s*(?:and|&)\s*Activities", re.I)
+SECTION_VII = re.compile(r"\bVII\b\.?\s*MONITORING", re.I)
+
+def find_ppa_section(raw_text):
+ """Section VI text, skipping a table of contents (first match that has a table)."""
+ for m in SECTION_VI.finditer(raw_text):
+    end = SECTION_VII.search(raw_text, m.end())
+    section = raw_text[m.end(): end.start() if end else len(raw_text)]
+    if "--- PAGE TABLES ---" in section:
+        return section
+ return None
